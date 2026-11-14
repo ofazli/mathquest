@@ -76,14 +76,14 @@ struct QuestionGenerator {
             let a=Int.random(in:1...5),base=Int.random(in:2...3),x=Int.random(in:2...5),b=Int.random(in:2...20)
             return build("For f(x) = \(a) × \(base)^x + \(b), find f(\(x)).",ans:a*Int(pow(Double(base),Double(x)))+b,story:"Evaluate an exponential growth rule for a given input.",hint:"Find the power first, multiply by \(a), then add \(b).",operands:[a,base,x,b],operators:["×","^","+"])
         case "measurement":
-            if g <= 3 {let w=Int.random(in:3...12),h=Int.random(in:2...10);if Bool.random(){return build("A garden is \(w) m by \(h) m. What is its area?",ans:w*h,story:"Maple is planning a rectangular garden.",hint:"Area is length times width.",operands:[w,h],operators:["×"])};let pieces=Int.random(in:2...8),each=Int.random(in:2...6);return build("A \(pieces*each) cm ribbon is cut into \(pieces) equal pieces. How long is each piece?",ans:each,story:"Cut ribbon for the explorers' badges.",hint:"Share the total length equally.",operands:[each,pieces],operators:["×"])}
+            if g <= 3 {let w=Int.random(in:3...12),h=Int.random(in:2...10);if Bool.random(){return build("A garden is \(w) m by \(h) m. What is its area?",ans:w*h,story:"Maple is planning a rectangular garden.",hint:"Area is length times width.",operands:[w,h],operators:["×"])};let pieces=Int.random(in:2...8),each=Int.random(in:2...6);return build("A \(pieces*each) cm ribbon is cut into \(pieces) equal pieces. How long is each piece?",ans:each,story:"Cut ribbon for the explorers' badges.",hint:"Share the total length equally.",operands:[pieces*each,pieces],operators:["÷"])}
             if g <= 6 {let w=Int.random(in:12...45),h=Int.random(in:8...32);if Bool.random(){return build("A rectangular mural is \(w) m wide and \(h) m high. Find its area.",ans:w*h,story:"Estimate the paintable area of a community mural.",hint:"Multiply width by height; area is in square metres.",operands:[w,h],operators:["×"])};return build("A rectangular field is \(w) m by \(h) m. Find the distance around it.",ans:2*w+2*h,story:"Plan the amount of fencing needed for the field.",hint:"Add twice the length and twice the width.",operands:[2,w,2,h],operators:["×","+","×"])}
             if g <= 8 {if Bool.random(){let l=Int.random(in:5...18),w=Int.random(in:3...12),h=Int.random(in:2...9);return build("A storage box is \(l) cm × \(w) cm × \(h) cm. Find its volume.",ans:l*w*h,story:"Pack the explorer's equipment into a rectangular box.",hint:"Volume = length × width × height.",operands:[l,w,h],operators:["×","×"])};let km=Int.random(in:2...18);return build("A hike is \(km) km long. How many metres is that?",ans:km*1000,story:"Convert the route length into metres for the trail map.",hint:"One kilometre equals 1,000 metres.",operands:[km,1000],operators:["×"])}
             let r=Int.random(in:3...15);return build("Using π ≈ 3, find the area of a circle with radius \(r) cm.",ans:3*r*r,story:"Design a circular garden bed and estimate its area.",hint:"Circle area = π × radius × radius. Use π ≈ 3.",operands:[3,r,r],operators:["×","×"])
         case "spatial":
             if g <= 3 {let sides=Int.random(in:3...6),groups=Int.random(in:2...5);if Bool.random(){return build("Each shape has \(sides) sides. How many sides do \(groups) shapes have?",ans:sides*groups,story:"Count all the sides in a set of shape tiles.",hint:"Multiply sides per shape by the number of shapes.",operands:[sides,groups],operators:["×"])};let corners=Int.random(in:3...8);return build("A polygon has \(corners) corners. How many vertices does it have?",ans:corners,story:"Name the corners on a shape in Maple's map.",hint:"A vertex is a corner of a shape.",operands:[corners],operators:[])}
             if g <= 6 {let l=Int.random(in:8...30),w=Int.random(in:5...22);if Bool.random(){return build("A rectangular field is \(l) m by \(w) m. What is its perimeter?",ans:2*l+2*w,story:"Map a fence around the rectangular field.",hint:"Perimeter = 2 × length + 2 × width.",operands:[2,l,2,w],operators:["×","+","×"])};let a=Int.random(in:25...155);return build("A straight angle is 180°. One part is \(a)°. Find the other part.",ans:180-a,story:"Rotate the compass to complete the straight angle.",hint:"Angles on a straight line add to 180°.",operands:[180,a],operators:["−"])}
-            if g <= 8 {if Bool.random(){let map=Int.random(in:3...12),scale=Int.random(in:4...15);return build("On a map, a trail is \(map) cm long. The scale is 1 cm = \(scale) km. What is the real distance?",ans:map*scale,story:"Use the map scale to plan a hiking route.",hint:"Multiply map distance by kilometres per centimetre.",operands:[map,scale],operators:["×"])};let angle=Int.random(in:35...145);return build("Two angles in a triangle are 40° and \(angle)°. Find the third angle.",ans:140-angle,story:"Solve the final angle in a triangle puzzle.",hint:"The angles in a triangle add to 180°.",operands:[180,40,angle],operators:["−","−"])}
+            if g <= 8 {if Bool.random(){let map=Int.random(in:3...12),scale=Int.random(in:4...15);return build("On a map, a trail is \(map) cm long. The scale is 1 cm = \(scale) km. What is the real distance?",ans:map*scale,story:"Use the map scale to plan a hiking route.",hint:"Multiply map distance by kilometres per centimetre.",operands:[map,scale],operators:["×"])};let angle=Int.random(in:35...125);return build("Two angles in a triangle are 40° and \(angle)°. Find the third angle.",ans:140-angle,story:"Solve the final angle in a triangle puzzle.",hint:"The angles in a triangle add to 180°.",operands:[180,40,angle],operators:["−","−"])}
             let r=Int.random(in:4...30);return build("Using π ≈ 3, find the circumference of a circle with radius \(r) cm.",ans:6*r,story:"Measure the distance around a circular track.",hint:"Circumference = 2 × π × radius. Use π ≈ 3.",operands:[2,3,r],operators:["×","×"])
         case "data":
             if g <= 3 {let a=Int.random(in:3...9),b=Int.random(in:2...8),c=Int.random(in:4...10);return build("Pine cones: \(a) • Acorns: \(b) • Berries: \(c). How many altogether?",ans:a+b+c,story:"Read Maple's forest picture graph.",hint:"Add the three categories.",operands:[a,b,c],operators:["+","+"])}
@@ -96,7 +96,7 @@ struct QuestionGenerator {
                 return build("Write \(decimal) as a percent.",ans:percent,story:"Connect a decimal amount to its percent form.",hint:"A decimal-to-percent conversion multiplies by 100.",operands:[percent],operators:[])
             }
             let percent=[10,20,25,30,40,50,60,75,80].randomElement() ?? 25,amount=Int.random(in:4...20)*25
-            return build("What is \(percent)% of \(amount)?",ans:percent*amount/100,story:"Use a percent to find a part of a whole amount.",hint:"Convert the percent to hundredths, then multiply by the amount.",operands:[amount,percent,100],operators:["×","÷"])
+            return buildExact("What is \(percent)% of \(amount)?",ans:Double(percent*amount)/100,story:"Use a percent to find a part of a whole amount.",hint:"Convert the percent to hundredths, then multiply by the amount.",operands:[amount,percent,100],operators:["×","÷"])
         case "probability":
             let total=[4,5,10,20].randomElement() ?? 10, favorable=Int.random(in:1...total)
             return build("A bag has \(favorable) winning tickets out of \(total). What is the probability as a percent?",ans:favorable*100/total,story:"Compare the number of favorable outcomes with all possible outcomes.",hint:"Probability percent = favorable outcomes ÷ total outcomes × 100.",operands:[favorable,100,total],operators:["×","÷"])
@@ -169,13 +169,13 @@ struct QuestionGenerator {
                 return build("A monthly budget is $\(income). After $\(food) for food and $\(savings) saved, how much remains?",ans:income-food-savings,story:"Balance needs and savings in a simple monthly budget.",hint:"Subtract both planned amounts from the total budget.",operands:[income,food,savings],operators:["−","−"])
             }
             let principal=Int.random(in:300...1600),rate=Int.random(in:3...8),years=Int.random(in:1...4)
-            return build("A $\(principal) loan has \(rate)% simple interest per year for \(years) years. What is the total payback?",ans:principal+(principal*rate*years/100),story:"Model the cost of borrowing and include the interest in the payback.",hint:"Find interest with principal × rate × years ÷ 100, then add the principal.",operands:[principal,rate,years,100,principal],operators:["×","×","÷","+"])
+            return buildExact("A $\(principal) loan has \(rate)% simple interest per year for \(years) years. What is the total payback?",ans:Double(principal)+Double(principal*rate*years)/100,story:"Model the cost of borrowing and include the interest in the payback.",hint:"Find interest with principal × rate × years ÷ 100, then add the principal.",operands:[principal,rate,years,100,principal],operators:["×","×","÷","+"])
         default:
             if g <= 3 {let price=Int.random(in:2...12),count=Int.random(in:2...5);if Bool.random(){return build("\(count) maple cookies cost $\(price) each. Total?",ans:price*count,story:"Buy treats for the forest fair.",hint:"Multiply the price by the number of cookies.",operands:[count,price],operators:["×"])};let have=Int.random(in:8...30),cost=Int.random(in:2...7);return build("You have $\(have) and spend $\(cost). How much is left?",ans:have-cost,story:"Choose a treat and keep track of your coins.",hint:"Subtract the cost from the amount you have.",operands:[have,cost],operators:["−"])}
             if g <= 6 {let price=Int.random(in:12...45),count=Int.random(in:3...18);if Bool.random(){return build("A school club sells \(count) tickets for $\(price) each. How much money is collected?",ans:price*count,story:"Plan the club's fundraiser budget.",hint:"Multiply ticket price by tickets sold.",operands:[price,count],operators:["×"])};let budget=Int.random(in:100...500),spent=Int.random(in:20...90);return build("A class has a $\(budget) trip budget and spends $\(spent). How much remains?",ans:budget-spent,story:"Help the class keep its trip budget on track.",hint:"Subtract the spending from the budget.",operands:[budget,spent],operators:["−"])}
-            if g <= 8 {let price=Int.random(in:30...180),rate=Int.random(in:10...40);if Bool.random(){return build("A backpack costs $\(price) and is discounted by \(rate)%. How much is the discount?",ans:price*rate/100,story:"Compare sale prices before shopping.",hint:"Discount amount = price × percent ÷ 100.",operands:[price,rate,100],operators:["×","÷"])};let tax=Int.random(in:5...15);return build("A $\(price) item has \(tax)% sales tax. Find the tax amount (nearest dollar).",ans:Int((Double(price*tax)/100).rounded()),story:"Estimate the tax before paying at the checkout.",hint:"Multiply the price by the tax rate, then divide by 100.",operands:[price,tax,100],operators:["×","÷"])}
+            if g <= 8 {let price=Int.random(in:30...180),rate=Int.random(in:10...40);if Bool.random(){return buildExact("A backpack costs $\(price) and is discounted by \(rate)%. How much is the discount?",ans:Double(price*rate)/100,story:"Compare sale prices before shopping.",hint:"Discount amount = price × percent ÷ 100.",operands:[price,rate,100],operators:["×","÷"])};let tax=Int.random(in:5...15);return build("A $\(price) item has \(tax)% sales tax. Find the tax amount (nearest dollar).",ans:Int((Double(price*tax)/100).rounded()),story:"Estimate the tax before paying at the checkout.",hint:"Multiply the price by the tax rate, then divide by 100.",operands:[price,tax,100],operators:["×","÷"])}
             let principal=Int.random(in:200...1500),rate=Int.random(in:3...9),years=Int.random(in:2...5)
-            return build("A savings account has $\(principal) at \(rate)% simple interest for \(years) years. Find the interest.",ans:principal*rate*years/100,story:"Plan a savings goal and calculate the interest earned.",hint:"Interest = principal × rate × years ÷ 100.",operands:[principal,rate,years,100],operators:["×","×","÷"])
+            return buildExact("A savings account has $\(principal) at \(rate)% simple interest for \(years) years. Find the interest.",ans:Double(principal*rate*years)/100,story:"Plan a savings goal and calculate the interest earned.",hint:"Interest = principal × rate × years ÷ 100.",operands:[principal,rate,years,100],operators:["×","×","÷"])
         }
     }
 
@@ -414,8 +414,9 @@ struct QuestionGenerator {
                 let x=Int.random(in:-8...8),y=Int.random(in:-8...8),dx=Int.random(in:-5...5),dy=Int.random(in:-5...5)
                 return conceptQuestion("Point P(\(x), \(y)) is translated by (\(dx), \(dy)). What are its new coordinates?",answer:"(\(x+dx), \(y+dy))",choices:["(\(x+dx), \(y+dy))","(\(x-dx), \(y-dy))","(\(y+dx), \(x+dy))","(\(x), \(y))"],hint:"Add the horizontal change to x and the vertical change to y.",story:"Plot coordinates in all four quadrants and describe translations.")
             case 1:
-                let x=Int.random(in:-8...8),y=Int.random(in:-8...8)
-                return conceptQuestion("Reflect point (\(x), \(y)) across the x-axis. What are its new coordinates?",answer:"(\(x), −\(y))",choices:["(\(x), −\(y))","(−\(x), \(y))","(\(y), \(x))","(−\(x), −\(y))"],hint:"A reflection across the x-axis keeps x and changes y to its opposite.",story:"Describe reflections on a coordinate grid.")
+                // Non-zero coordinates keep the reflection (and its distractors) distinct.
+                let x=Int.random(in:1...8)*(Bool.random() ? 1 : -1),y=Int.random(in:1...8)*(Bool.random() ? 1 : -1)
+                return conceptQuestion("Reflect point (\(x), \(y)) across the x-axis. What are its new coordinates?",answer:"(\(x), \(-y))",choices:["(\(x), \(-y))","(\(-x), \(y))","(\(y), \(x))","(\(-x), \(-y))"],hint:"A reflection across the x-axis keeps x and changes y to its opposite.",story:"Describe reflections on a coordinate grid.")
             case 2:
                 let x=Int.random(in:1...8),y=Int.random(in:1...8),angle=[90,180,270].randomElement() ?? 90
                 let answer=angle==90 ? "(−\(y), \(x))" : angle==180 ? "(−\(x), −\(y))" : "(\(y), −\(x))"
@@ -516,7 +517,7 @@ struct QuestionGenerator {
             case 2,3:
                 let d=[4,5,6,8,10,12].randomElement() ?? 8
                 let a=Int.random(in:1...(d-1)),b=Int.random(in:1...(d-a))
-                let isAddition=Bool.random(),numerator=isAddition ? a+b : max(a,b)-min(a,b)
+                let isAddition=Bool.random() || a == b,numerator=isAddition ? a+b : max(a,b)-min(a,b)
                 let left=isAddition ? a : max(a,b),right=isAddition ? b : min(a,b),op=isAddition ? "+" : "−"
                 return fractionAnswerQuestion("Build the answer: \(left)/\(d) \(op) \(right)/\(d).",answer:"\(numerator)/\(d)",denominator:d,hint:"The parts are the same size, so keep the denominator and combine the numerators.",story:"Add or subtract fractions with the same denominator.")
             default:
@@ -994,9 +995,13 @@ struct QuestionGenerator {
 
     private func makeFractionChoiceQuestion(_ prompt:String,answer:String,distractors:[String],hint:String,story:String)->Question {
         var options=Array(Set(distractors.filter{$0 != answer})).shuffled().prefix(3).map{$0}
+        // Fill any missing distractors with fresh values; the counter always advances
+        // so a collision with the answer can never stall the loop.
+        var filler=1
         while options.count < 3 {
-            let candidate="\(options.count+1)/\(options.count+4)"
+            let candidate="\(filler)/\(filler+3)"
             if candidate != answer && !options.contains(candidate) { options.append(candidate) }
+            filler += 1
         }
         return Question(prompt:prompt,choices:([answer]+options).shuffled(),answer:answer,hint:hint,story:story,operands:[],operators:[],numberTiles:[],fractionNumerator:nil,fractionDenominator:nil)
     }
@@ -1010,11 +1015,74 @@ struct QuestionGenerator {
         let finalPrompt=useCalculationForm ? generatedExpression!.prompt : prompt
         let finalStory=useCalculationForm ? "Solve the number sentence using a strategy that makes sense to you." : story
         let finalHint=useCalculationForm ? generatedExpression!.hint : hint
-        let correct=String(ans);var options=Set([ans]);while options.count<4 { options.insert(max(0,ans+Int.random(in:-max(3,ans/2)...max(3,ans/2)))) };let choices=options.map(String.init).shuffled()
+        let correct=String(ans)
+        let choices=integerChoices(for:ans).map(String.init).shuffled()
+        let board=boardSetup(operands:operands,operators:operators,answer:Double(ans))
+        return Question(prompt:finalPrompt,choices:choices,answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil)
+    }
+
+    /// Returns the answer plus three distinct distractors. Distractors stay
+    /// non-negative for non-negative answers, and the search is bounded so it
+    /// can never spin forever.
+    private func integerChoices(for ans:Int)->[Int] {
+        let spread=max(3,abs(ans)/2)
+        var options=Set([ans])
+        var attempts=0
+        while options.count<4 && attempts<100 {
+            attempts += 1
+            let candidate=ans+Int.random(in:-spread...spread)
+            if ans >= 0 && candidate < 0 { continue }
+            options.insert(candidate)
+        }
+        var step=1
+        while options.count<4 { options.insert(ans+step); step += 1 }
+        return Array(options)
+    }
+
+    /// Only offers the number board when the operands and operators, evaluated
+    /// with the board's own precedence rules, really produce the answer and
+    /// the answer is not simply handed over as a lone tile.
+    private func boardSetup(operands:[Int],operators:[String],answer:Double)->(operands:[Int],operators:[String],tiles:[Int]) {
+        guard operands.count >= 2,operators.count == operands.count-1,
+              let value=Self.evaluateBoardExpression(numbers:operands.map(Double.init),operators:operators),
+              abs(value-answer) < 0.0001 else { return ([],[],[]) }
         var tiles=operands
         var used=Set(operands)
         while tiles.count < operands.count+3 { let candidate=Int.random(in:1...max(15,operands.max() ?? 15));if used.insert(candidate).inserted { tiles.append(candidate) } }
-        return Question(prompt:finalPrompt,choices:choices,answer:correct,hint:finalHint,story:finalStory,operands:operands,operators:operators,numberTiles:tiles.shuffled(),fractionNumerator:nil,fractionDenominator:nil)
+        return (operands,operators,tiles.shuffled())
+    }
+
+    /// Mirrors the number board: powers first (right to left), then × and ÷, then + and −.
+    static func evaluateBoardExpression(numbers input:[Double],operators input2:[String])->Double? {
+        var numbers=input,ops=input2
+        guard !numbers.isEmpty,ops.count == numbers.count-1,ops.allSatisfy({["+","−","×","÷","^"].contains($0)}) else { return nil }
+        var powerIndex=ops.count-1
+        while powerIndex >= 0 {
+            if ops[powerIndex] == "^" {
+                let value=pow(numbers[powerIndex],numbers[powerIndex+1])
+                guard value.isFinite else { return nil }
+                numbers[powerIndex]=value
+                numbers.remove(at:powerIndex+1);ops.remove(at:powerIndex)
+            }
+            powerIndex -= 1
+        }
+        var i=0
+        while i < ops.count {
+            if ops[i] == "×" || ops[i] == "÷" {
+                guard ops[i] != "÷" || numbers[i+1] != 0 else { return nil }
+                numbers[i] = ops[i] == "×" ? numbers[i]*numbers[i+1] : numbers[i]/numbers[i+1]
+                numbers.remove(at:i+1);ops.remove(at:i)
+            } else { i += 1 }
+        }
+        var result=numbers[0]
+        for (index,op) in ops.enumerated() { result += op == "+" ? numbers[index+1] : -numbers[index+1] }
+        return result.isFinite ? result : nil
+    }
+
+    /// Uses a whole-number answer when the exact value is whole, otherwise dollars-and-cents.
+    private func buildExact(_ prompt:String,ans:Double,story:String,hint:String,operands:[Int],operators:[String])->Question {
+        if ans.rounded() == ans { return build(prompt,ans:Int(ans),story:story,hint:hint,operands:operands,operators:operators) }
+        return build(prompt,ans:ans,story:story,hint:hint,operands:operands,operators:operators)
     }
 
     private func arithmeticExpression(operands:[Int],operators:[String],answer:Int)->(prompt:String,hint:String)? {
@@ -1066,11 +1134,13 @@ struct QuestionGenerator {
         let finalHint=useCalculationForm ? generatedExpression!.hint : hint
         let correct=String(format:"%.2f",rounded)
         var options=Set([correct])
-        for offset in [-2.0,-1.0,1.0,2.0] { options.insert(String(format:"%.2f",max(0,rounded+offset))) }
-        var tiles=operands
-        var used=Set(operands)
-        while tiles.count < operands.count+3 { let candidate=Int.random(in:1...max(15,operands.max() ?? 15));if used.insert(candidate).inserted { tiles.append(candidate) } }
-        return Question(prompt:finalPrompt,choices:Array(options).shuffled(),answer:correct,hint:finalHint,story:finalStory,operands:operands,operators:operators,numberTiles:tiles.shuffled(),fractionNumerator:nil,fractionDenominator:nil)
+        for offset in [-2.0,-1.0,1.0,2.0,3.0,4.0] where options.count < 4 {
+            let candidate=rounded+offset
+            if rounded >= 0 && candidate < 0 { continue }
+            options.insert(String(format:"%.2f",candidate))
+        }
+        let board=boardSetup(operands:operands,operators:operators,answer:rounded)
+        return Question(prompt:finalPrompt,choices:Array(options).shuffled(),answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil)
     }
 
     private func arithmeticExpression(operands:[Int],operators:[String],answer:Double)->(prompt:String,hint:String)? {

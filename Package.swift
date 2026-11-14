@@ -5,5 +5,5 @@ let package = Package(
     name: "MathQuest",
     platforms: [.macOS(.v14)],
     products: [.executable(name: "MathQuest", targets: ["MathQuest"])],
-    targets: [.executableTarget(name: "MathQuest")]
+    targets: [.executableTarget(name: "MathQuest", resources: [.process("Assets.xcassets")])]
 )

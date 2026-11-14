@@ -37,6 +37,27 @@ private struct FractionCircleView: View {
     }
 }
 
+/// Scales a view up by `factor` while keeping it exactly the screen size, so on iPhone the
+/// fixed-size desktop text and controls become readable and the content fills the whole screen.
+struct PhoneZoom: ViewModifier {
+    let enabled: Bool
+    let factor: CGFloat
+
+    func body(content: Content) -> some View {
+        if enabled {
+            GeometryReader { geo in
+                content
+                    .frame(width: geo.size.width / factor, height: geo.size.height / factor)
+                    .scaleEffect(factor, anchor: .topLeading)
+                    .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                    .clipped()
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct ContentView: View {
     private var topics: [Topic] { CurriculumCatalog.topics }
     private var shopCharacters: [ShopCharacter] { CurriculumCatalog.shopCharacters }
@@ -53,6 +74,7 @@ struct ContentView: View {
     private var numberTileSurface: Color { isDarkAppearance ? Color(red:0.35,green:0.31,blue:0.20) : Color(red:1,green:0.88,blue:0.55) }
     private var slotValueSurface: Color { isDarkAppearance ? Color(red:0.22,green:0.28,blue:0.37) : Color(red:0.89,green:0.94,blue:0.99) }
 
+    @Environment(\.horizontalSizeClass) private var sizeClass: UserInterfaceSizeClass?
     @State private var selectedTab = "Home"
     @State private var grade = 3
     @State private var selectedProfileTopicID = "number"
@@ -67,9 +89,9 @@ struct ContentView: View {
     @State private var selectedBoardTile: String?
     @State private var fractionPreview: String?
     @State private var fractionPieces: Set<Int> = []
-    @State private var showBoardFeedback = false
     @AppStorage("mathquest.solvedChallenges") private var score = 0
     @AppStorage("mathquest.dayStreak") private var streak = 0
+    @AppStorage("mathquest.lastPlayDay") private var lastPlayDay = ""
     @AppStorage("mathquest.correctAnswerStreak") private var correctAnswerStreak = 0
     @AppStorage("mathquest.topicCorrectStreaks") private var topicCorrectStreakData = ""
     @AppStorage("mathquest.topicsAttempted") private var topicsAttemptedData = ""
@@ -96,7 +118,7 @@ struct ContentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
+            if !isCompact { sidebar }
             ZStack {
                 paper.ignoresSafeArea()
                 if let question { gameView(question) }
@@ -108,6 +130,8 @@ struct ContentView: View {
                 else if selectedTab == "Settings" { settingsView }
                 else { homeView }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+            .modifier(PhoneZoom(enabled: isCompact, factor: 1.06))
             .overlay(alignment:.topTrailing) {
                 VStack(alignment:.trailing,spacing:8) {
                     if let message=newlyUnlockedBadgeMessage { badgeToast(message).transition(.move(edge:.top).combined(with:.opacity)) }
@@ -123,8 +147,10 @@ struct ContentView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { if isCompact { compactNavBar } }
+        .background(paper.ignoresSafeArea())
         .preferredColorScheme(isDarkAppearance ? .dark : .light)
-        .onAppear { reconcileBadgeProgress() }
+        .onAppear { refreshDayStreak(); reconcileBadgeProgress() }
         .sheet(isPresented: $showParent) { parentSheet }
     }
 
@@ -143,10 +169,59 @@ struct ContentView: View {
         .accessibilityElement(children:.combine)
     }
 
+    // SwiftPM builds put the asset catalog in Bundle.module; the Xcode app target uses the main bundle.
+    #if SWIFT_PACKAGE
+    private static let assetBundle = Bundle.module
+    #else
+    private static let assetBundle = Bundle.main
+    #endif
+
+    private var isCompact: Bool { sizeClass == .compact }
+
+    private var compactNavItems: [(page:String,icon:String,label:String)] {
+        [("Home","house.fill","Home"),("Map","map.fill","Map"),("Profile","person.crop.circle","Profile"),
+         ("Review","arrow.counterclockwise.circle.fill","Review"),("Shop","bag.fill","Shop"),
+         ("Inventory","shippingbox.fill","Items"),("Settings","gearshape.fill","Settings")]
+    }
+
+    // Bottom navigation used on iPhone (compact width) instead of the desktop sidebar.
+    private var compactNavBar: some View {
+        HStack(spacing: 0) {
+            ForEach(compactNavItems, id: \.page) { item in
+                Button { navigate(to: item.page) } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: item.icon).font(.system(size: 21, weight: .semibold))
+                        Text(item.label).font(.system(size: 10, weight: .bold)).lineLimit(1).minimumScaleFactor(0.55)
+                    }
+                    .foregroundStyle(selectedTab == item.page && question == nil ? ink : Color.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("nav-\(item.page.lowercased())")
+            }
+            Button { showParent = true } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: "person.crop.circle").font(.system(size: 21, weight: .semibold))
+                    Text("Grown-up").font(.system(size: 10, weight: .bold)).lineLimit(1).minimumScaleFactor(0.55)
+                }
+                .foregroundStyle(Color.gray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 4)
+        .background(sidebarSurface.ignoresSafeArea(edges: .bottom))
+    }
+
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let reviewCount=reviewChallenges.count
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Image("MathQuestMark")
+                Image("MathQuestMark",bundle:Self.assetBundle)
                     .resizable()
                     .scaledToFill()
                     .frame(width:42,height:42)
@@ -157,7 +232,7 @@ struct ContentView: View {
             }.padding(.bottom,28)
             ForEach([("Home","house.fill"),("Map","map.fill"),("Profile","person.crop.circle"),("Review","arrow.counterclockwise.circle.fill"),("Shop","bag.fill"),("Inventory","shippingbox.fill"),("Settings","gearshape.fill")],id:\.0) { item in
                 Button { navigate(to: item.0) } label: {
-                    HStack(spacing:13) { Image(systemName:item.1).frame(width:20); Text(item.0).font(.system(size:14,weight:.semibold)); Spacer(); if item.0 == "Review" && !reviewChallenges.isEmpty { Text("\(reviewChallenges.count)").font(.system(size:10,weight:.black)).padding(.horizontal,7).padding(.vertical,4).background(Color.orange.opacity(0.22),in:Capsule()) } }
+                    HStack(spacing:13) { Image(systemName:item.1).frame(width:20); Text(item.0).font(.system(size:14,weight:.semibold)); Spacer(); if item.0 == "Review" && reviewCount > 0 { Text("\(reviewCount)").font(.system(size:10,weight:.black)).padding(.horizontal,7).padding(.vertical,4).background(Color.orange.opacity(0.22),in:Capsule()) } }
                         .foregroundStyle(selectedTab == item.0 ? ink : Color.gray)
                         .padding(.horizontal,14).frame(maxWidth:.infinity,minHeight:46,alignment:.leading)
                         .background(selectedTab == item.0 ? surface : .clear, in: RoundedRectangle(cornerRadius:13))
@@ -182,7 +257,7 @@ struct ContentView: View {
             VStack(alignment:.leading,spacing:25) {
                 HStack { VStack(alignment:.leading,spacing:5){Text("Hey, learner! 👋").font(.system(size:28,weight:.black,design:.rounded));Text("Ready for a little adventure?").font(.system(size:15)).foregroundStyle(.secondary)}; Spacer(); HStack(spacing:7){Image(systemName:"flame.fill").foregroundStyle(.orange);Text("\(streak) day streak").font(.system(size:13,weight:.bold))}.padding(.horizontal,13).padding(.vertical,10).background(surface,in:Capsule()) }
                 hero
-                HStack {
+                (isCompact ? AnyLayout(VStackLayout(alignment:.leading,spacing:12)) : AnyLayout(HStackLayout())) {
                     Text("Pick your playground").font(.system(size:20,weight:.black,design:.rounded))
                     Spacer()
                     Text("YOUR GRADE").font(.system(size:9,weight:.heavy)).tracking(1).foregroundStyle(.secondary)
@@ -192,7 +267,7 @@ struct ContentView: View {
                         Button { grade=min(12,grade+1) } label:{Image(systemName:"plus").font(.system(size:10,weight:.black)).frame(width:27,height:27).background(Color.black.opacity(0.06),in:Circle())}.buttonStyle(.plain).disabled(grade >= 12)
                     }.padding(.horizontal,9).padding(.vertical,6).background(surface,in:Capsule())
                 }
-                LazyVGrid(columns:[GridItem(.flexible()),GridItem(.flexible()),GridItem(.flexible())],spacing:14) {
+                LazyVGrid(columns:Array(repeating:GridItem(.flexible()),count:isCompact ? 2 : 3),spacing:14) {
                     ForEach(enabledTopics) { topicCard($0) }
                 }
                 HStack(spacing:14) { Image(systemName:"lightbulb.fill").foregroundStyle(.orange); Text("Challenges have no time limit. Play at your own pace—every try earns you a little progress.").font(.system(size:12,weight:.medium)).foregroundStyle(.secondary); Spacer() }.padding(15).background(surface.opacity(0.75),in:RoundedRectangle(cornerRadius:14))
@@ -202,9 +277,9 @@ struct ContentView: View {
 
     private var hero: some View {
         HStack(spacing:20) {
-            VStack(alignment:.leading,spacing:13) { Text("TODAY’S MINI ADVENTURE").font(.system(size:10,weight:.heavy)).tracking(1.6).foregroundStyle(.white.opacity(0.78)); Text("The Great\nMath Mystery").font(.system(size:29,weight:.black,design:.rounded)).foregroundStyle(.white); Text("\(activeCharacterID) is ready to explore!").font(.system(size:13,weight:.medium)).foregroundStyle(.white.opacity(0.88)); Button { startGame(topic:enabledTopics.first ?? topics[0]) } label: { HStack{Text("Let’s play");Image(systemName:"arrow.right")}.font(.system(size:13,weight:.bold)).foregroundStyle(ink).padding(.horizontal,17).padding(.vertical,11).background(Color(red:1,green:0.82,blue:0.43),in:Capsule()) }.buttonStyle(.plain) }
+            VStack(alignment:.leading,spacing:13) { Text("TODAY’S MINI ADVENTURE").font(.system(size:10,weight:.heavy)).tracking(1.6).foregroundStyle(.white.opacity(0.78)); Text("The Great\nMath Mystery").font(.system(size:29,weight:.black,design:.rounded)).foregroundStyle(.white); Text("\(activeCharacterID) is ready to explore!").font(.system(size:13,weight:.medium)).foregroundStyle(.white.opacity(0.88)); Button { if let topic=learningMapTopics.first { startGame(topic:topic) } } label: { HStack{Text("Let’s play");Image(systemName:"arrow.right")}.font(.system(size:13,weight:.bold)).foregroundStyle(ink).padding(.horizontal,17).padding(.vertical,11).background(Color(red:1,green:0.82,blue:0.43),in:Capsule()) }.buttonStyle(.plain).disabled(learningMapTopics.isEmpty).opacity(learningMapTopics.isEmpty ? 0.5 : 1) }
             Spacer()
-            ZStack { Circle().fill(.white.opacity(0.13)).frame(width:180,height:180); Circle().stroke(.white.opacity(0.2),lineWidth:1).frame(width:145,height:145); Text(activeCharacter.emoji).font(.system(size:96)); Text("✦").font(.system(size:24)).foregroundStyle(.yellow).offset(x:70,y:-53); Text("✧").font(.system(size:29)).foregroundStyle(.white).offset(x:-78,y:43) }
+            if !isCompact { ZStack { Circle().fill(.white.opacity(0.13)).frame(width:180,height:180); Circle().stroke(.white.opacity(0.2),lineWidth:1).frame(width:145,height:145); Text(activeCharacter.emoji).font(.system(size:96)); Text("✦").font(.system(size:24)).foregroundStyle(.yellow).offset(x:70,y:-53); Text("✧").font(.system(size:29)).foregroundStyle(.white).offset(x:-78,y:43) } }
         }.padding(25).frame(maxWidth:.infinity,minHeight:220).background(LinearGradient(colors:[Color(red:0.33,green:0.37,blue:0.76),Color(red:0.53,green:0.39,blue:0.77)],startPoint:.topLeading,endPoint:.bottomTrailing),in:RoundedRectangle(cornerRadius:24))
     }
 
@@ -225,7 +300,7 @@ struct ContentView: View {
     private var mapView: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:18) {
-                HStack(spacing:14) {
+                (isCompact ? AnyLayout(VStackLayout(alignment:.leading,spacing:14)) : AnyLayout(HStackLayout(spacing:14))) {
                     VStack(alignment:.leading,spacing:5) {
                         Text("Grade \(grade) practice map").font(.system(size:28,weight:.black,design:.rounded))
                         Text("Choose a topic to practise. Each bar tracks correct answers toward 10.")
@@ -324,19 +399,20 @@ struct ContentView: View {
     }
 
     private var reviewView: some View {
-        ScrollView {
+        let challenges=reviewChallenges
+        return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Questions to retry").font(.system(size:28,weight:.black,design:.rounded))
                 Text("Only questions you answered incorrectly appear here. Retry the same question; it leaves the list when you answer correctly.")
                     .font(.system(size:14)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                if reviewChallenges.isEmpty {
+                if challenges.isEmpty {
                     VStack(spacing:12) {
                         Image(systemName:"checkmark.seal.fill").font(.system(size:42)).foregroundStyle(.green)
                         Text("No questions to retry!").font(.system(size:19,weight:.black,design:.rounded))
                         Text("Questions you answer incorrectly will appear here. You won’t be sent through the whole lesson.").font(.system(size:13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     }.frame(maxWidth:.infinity).padding(38).background(surface,in:RoundedRectangle(cornerRadius:18))
                 } else {
-                    ForEach(reviewChallenges) { challenge in
+                    ForEach(challenges) { challenge in
                         let topic = topics.first(where: { $0.id == challenge.topicID })
                         HStack(spacing:14) {
                             Image(systemName:topic?.icon ?? "questionmark.circle.fill").font(.system(size:22,weight:.bold)).foregroundStyle(topic?.color ?? .orange).frame(width:48,height:48).background((topic?.color ?? .orange).opacity(0.13),in:RoundedRectangle(cornerRadius:14))
@@ -483,7 +559,7 @@ struct ContentView: View {
                         Picker("Theme",selection:$appearance) {
                             Text("Light").tag("Light")
                             Text("Dark").tag("Dark")
-                        }.pickerStyle(.segmented).frame(width:210)
+                        }.pickerStyle(.segmented).labelsHidden().frame(width:210)
                     }
                     Text("Choose the light or dark look for Math Quest.").font(.system(size:11)).foregroundStyle(.secondary)
                 }.padding(17).frame(maxWidth:.infinity,alignment:.leading).background(surface,in:RoundedRectangle(cornerRadius:16))
@@ -575,7 +651,7 @@ struct ContentView: View {
         let expiry=multiplier == 4 ? quadrupleXPExpiry : doubleXPExpiry
         let tint:Color=multiplier == 4 ? .orange : .purple
         return HStack(spacing:14) {
-            Text(multiplier == 4 ? "⚡️⚡️" : "⚡️").font(.system(size:multiplier == 4 ? 29 : 40)).frame(width:62,height:62).background(tint.opacity(0.12),in:RoundedRectangle(cornerRadius:16))
+            Text(multiplier == 4 ? "⚡️⚡️" : "⚡️").font(.system(size:multiplier == 4 ? 24 : 40)).lineLimit(1).minimumScaleFactor(0.5).frame(width:62,height:62).background(tint.opacity(0.12),in:RoundedRectangle(cornerRadius:16))
             VStack(alignment:.leading,spacing:5) {
                 Text("\(multiplier)× XP Potion").font(.system(size:17,weight:.black,design:.rounded))
                 Text("Owned: \(inventory)").font(.system(size:13,weight:.bold)).foregroundStyle(tint)
@@ -673,11 +749,13 @@ struct ContentView: View {
         var subjectStreaks=topicCorrectStreaks
         subjectStreaks[topicID,default:0] += 1
         topicCorrectStreakData=subjectStreaks.keys.sorted().map{"\($0)=\(subjectStreaks[$0] ?? 0)"}.joined(separator:";")
+        // Record the answer before bumping topicWins: legacy saves seed answer stats
+        // from topicWins, so the reverse order would count this answer twice.
+        recordTopicAnswer(topicID,correct:true)
         var wins=topicWins
         wins[topicID,default:0] += 1
         topicWinsData=wins.keys.sorted().map{"\($0)=\(wins[$0] ?? 0)"}.joined(separator:";")
         let wasReviewQuestion=activeReviewChallengeID != nil
-        recordTopicAnswer(topicID,correct:true)
         unlockBadges(reviewCorrect:wasReviewQuestion)
         if let activeReviewChallengeID {
             saveReviewChallenges(reviewChallenges.filter { $0.id != activeReviewChallengeID })
@@ -777,6 +855,26 @@ struct ContentView: View {
         earnedBadgeData=unlocked.sorted().joined(separator:",")
     }
 
+    private static func dayKey(_ date:Date)->String {
+        let c=Calendar.current.dateComponents([.year,.month,.day],from:date)
+        return String(format:"%04d-%02d-%02d",c.year ?? 0,c.month ?? 0,c.day ?? 0)
+    }
+    private var yesterdayKey:String { Self.dayKey(Calendar.current.date(byAdding:.day,value:-1,to:Date()) ?? Date()) }
+
+    /// Counts consecutive calendar days with at least one correct answer.
+    private func recordPlayToday() {
+        let today=Self.dayKey(Date())
+        guard lastPlayDay != today else { if streak < 1 { streak=1 }; return }
+        streak = lastPlayDay == yesterdayKey ? streak+1 : 1
+        lastPlayDay=today
+    }
+
+    /// A streak is broken once a full calendar day passes without play.
+    private func refreshDayStreak() {
+        guard !lastPlayDay.isEmpty else { return }
+        if lastPlayDay != Self.dayKey(Date()) && lastPlayDay != yesterdayKey { streak=0 }
+    }
+
     private func reconcileBadgeProgress() {
         // Older saves have an XP balance but predate lifetime XP tracking.
         totalXPEarned=max(totalXPEarned,xp)
@@ -799,21 +897,6 @@ struct ContentView: View {
             }.frame(height:11)
             Text("Goal: \(goal)\(title == "XP collected" ? " XP" : title == "Day streak" ? " days" : " challenges")").font(.system(size:10,weight:.medium)).foregroundStyle(.secondary)
         }.padding(14).background(surface,in:RoundedRectangle(cornerRadius:14))
-    }
-
-    private func topicGraph(_ topic:Topic)->some View {
-        let wins=topicWins[topic.id] ?? 0
-        return HStack(spacing:11) {
-            Image(systemName:topic.icon).foregroundStyle(topic.color).frame(width:23)
-            Text(topic.title).font(.system(size:11,weight:.semibold)).lineLimit(1).frame(width:125,alignment:.leading)
-            GeometryReader { proxy in
-                ZStack(alignment:.leading) {
-                    Capsule().fill(Color.black.opacity(0.06))
-                    Capsule().fill(topic.color).frame(width:proxy.size.width * min(1,CGFloat(wins)/10))
-                }
-            }.frame(height:8)
-            Text("\(wins)").font(.system(size:11,weight:.bold)).foregroundStyle(.secondary).frame(width:28,alignment:.trailing)
-        }.padding(12).background(surface,in:RoundedRectangle(cornerRadius:12))
     }
 
     private var topicWins:[String:Int] {
@@ -878,20 +961,26 @@ struct ContentView: View {
         }.padding(13).background(surface,in:RoundedRectangle(cornerRadius:15))
     }
 
+    // Desktop: the question panel scrolls inside its card. iPhone: the whole game screen scrolls instead.
+    @ViewBuilder private func questionContainer<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        if isCompact { content() } else { ScrollView { content() } }
+    }
+
     private func gameView(_ q: Question) -> some View {
         VStack(spacing:0) {
             HStack { Button { activeReviewChallengeID=nil;question=nil;selectedAnswer=nil;answered=false } label:{Label("Back to camp",systemImage:"arrow.left").font(.system(size:12,weight:.bold)).foregroundStyle(ink)}.buttonStyle(.plain); Spacer(); activePotionBadge; HStack{Image(systemName:"sparkles").foregroundStyle(.orange);Text("\(xp) XP").font(.system(size:12,weight:.bold))}.padding(10).background(surface,in:Capsule()) }.padding(.horizontal,32).padding(.top,23)
+            ScrollView(isCompact ? .vertical : []) {
             VStack(spacing:10) {
-            HStack(alignment:.top,spacing:20) {
+            (isCompact ? AnyLayout(VStackLayout(spacing:16)) : AnyLayout(HStackLayout(alignment:.top,spacing:20))) {
             VStack(spacing:9) {
-                ScrollView {
+                questionContainer {
                     VStack(spacing:16) {
                     HStack(spacing:7){ForEach(0..<5,id:\.self){i in Capsule().fill(i < round%5 ? Color.green : Color.black.opacity(0.08)).frame(height:6)}}
                     HStack(spacing:8){Image(systemName:(selectedTopic ?? topics[0]).icon);Text((selectedTopic ?? topics[0]).title.uppercased()).tracking(1)}.font(.system(size:10,weight:.heavy)).foregroundStyle((selectedTopic ?? topics[0]).color)
                     Text("SCENARIO").font(.system(size:9,weight:.black,design:.rounded)).tracking(0.8).foregroundStyle(.tertiary).frame(maxWidth:500,alignment:.leading)
                     Text(q.story).font(.system(size:14,weight:.medium,design:.rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth:500)
                     Text(q.prompt).font(.system(size:29,weight:.black,design:.rounded)).foregroundStyle(ink).multilineTextAlignment(.center).padding(.vertical,4)
-                    visualExampleView()
+                    visualExampleView(for:q)
                     VStack(spacing:8) { ForEach(q.choices,id:\.self) { choice in
                         if q.fractionNumerator != nil {
                             EmptyView()
@@ -931,10 +1020,16 @@ struct ContentView: View {
                 .scrollIndicators(.hidden)
                 .background(surface.opacity(0.64),in:RoundedRectangle(cornerRadius:20))
             }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
-                if q.fractionNumerator != nil { fractionBoard(q).frame(width:250) }
-                else if !q.operands.isEmpty { whiteboard(q).frame(width:250) }
+                if isCompact {
+                    if q.fractionNumerator != nil { fractionBoard(q).frame(maxWidth:.infinity) }
+                    else if !q.operands.isEmpty { whiteboard(q).frame(maxWidth:.infinity) }
+                } else {
+                    if q.fractionNumerator != nil { fractionBoard(q).frame(width:250) }
+                    else if !q.operands.isEmpty { whiteboard(q).frame(width:250) }
+                }
             }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
             }.padding(24).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
+            }
         }
     }
 
@@ -953,9 +1048,9 @@ struct ContentView: View {
                     }
                 }
                 Text("Operations").font(.system(size:10,weight:.bold)).foregroundStyle(.secondary).frame(maxWidth:.infinity,alignment:.leading)
-                HStack(spacing:5) { ForEach(["+","−","×","÷","^"],id:\.self) { symbol in Text(symbol).font(.system(size:16,weight:.black,design:.rounded)).foregroundStyle(.white).frame(maxWidth:.infinity,minHeight:36).background(Color(red:0.40,green:0.48,blue:0.75),in:RoundedRectangle(cornerRadius:10)).overlay(RoundedRectangle(cornerRadius:10).stroke(selectedBoardTile == "O:\(symbol)" ? Color.orange : .clear,lineWidth:2)).draggable("O:\(symbol)").onTapGesture{selectedBoardTile="O:\(symbol)"} } }
-                Button { if let result=evaluateBoard(q) { let isCorrect=abs(result - (Double(q.answer) ?? 0)) < 0.0001;boardAnswer=isCorrect ? "correct":"wrong";showBoardFeedback=true;answered=isCorrect;if isCorrect{round += 1;awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");streak=max(streak,1)}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)} } } label:{Text(boardAnswer == "wrong" ? "Try this equation" : "Check my equation").font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(maxWidth:.infinity).padding(.vertical,10).background(evaluateBoard(q) == nil || answered ? Color.gray.opacity(0.45):Color(red:0.27,green:0.61,blue:0.53),in:Capsule())}.buttonStyle(.plain).disabled(evaluateBoard(q) == nil || answered)
-                Button("Clear board") { resetBoard(for:q);boardAnswer=nil;showBoardFeedback=false;selectedBoardTile=nil }.font(.system(size:10,weight:.semibold)).foregroundStyle(.secondary).buttonStyle(.plain).disabled(answered)
+                HStack(spacing:5) { ForEach(["+","−","×","÷","^"],id:\.self) { symbol in Text(symbol).font(.system(size:21,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(maxWidth:.infinity,minHeight:36).background(Color(red:0.40,green:0.48,blue:0.75),in:RoundedRectangle(cornerRadius:10)).overlay(RoundedRectangle(cornerRadius:10).stroke(selectedBoardTile == "O:\(symbol)" ? Color.orange : .clear,lineWidth:2)).draggable("O:\(symbol)").onTapGesture{selectedBoardTile="O:\(symbol)"} } }
+                Button { if let result=evaluateBoard(q) { let isCorrect=abs(result - (Double(q.answer) ?? 0)) < 0.0001;boardAnswer=isCorrect ? "correct":"wrong";answered=isCorrect;if isCorrect{round += 1;awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday()}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)} } } label:{Text(boardAnswer == "wrong" ? "Try this equation" : "Check my equation").font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(maxWidth:.infinity).padding(.vertical,10).background(evaluateBoard(q) == nil || answered ? Color.gray.opacity(0.45):Color(red:0.27,green:0.61,blue:0.53),in:Capsule())}.buttonStyle(.plain).disabled(evaluateBoard(q) == nil || answered)
+                Button("Clear board") { resetBoard(for:q);boardAnswer=nil;selectedBoardTile=nil }.font(.system(size:10,weight:.semibold)).foregroundStyle(.secondary).buttonStyle(.plain).disabled(answered)
             }.padding(13).background(boardPanelSurface,in:RoundedRectangle(cornerRadius:18)).overlay(RoundedRectangle(cornerRadius:18).stroke(Color.black.opacity(0.06),lineWidth:1))
             Spacer(minLength:0)
             Text("You can still tap an answer on the left.").font(.system(size:10)).foregroundStyle(.tertiary).multilineTextAlignment(.center).frame(maxWidth:.infinity)
@@ -984,9 +1079,9 @@ struct ContentView: View {
         let placedCount = fractionPieces.count
         return VStack(alignment:.leading,spacing:12) {
             HStack(spacing:8){Image(systemName:"circle.lefthalf.filled").foregroundStyle(Color(red:0.78,green:0.30,blue:0.54));Text("FRACTION CIRCLES").font(.system(size:11,weight:.black,design:.rounded)).tracking(0.8)}
-            Text("Same amount, different number of pieces.").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+            Text("Shade the pieces that show the answer.").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
             VStack(spacing:8) {
-                Text("Build an equivalent fraction with your circle.").font(.system(size:11,weight:.bold)).foregroundStyle(ink).multilineTextAlignment(.center)
+                Text("Build the answer with your circle.").font(.system(size:11,weight:.bold)).foregroundStyle(ink).multilineTextAlignment(.center)
                 Text("Tap your circle to add a piece.").font(.system(size:10,weight:.medium)).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 VStack(spacing:5) {
                     Text("Your circle").font(.system(size:10,weight:.bold)).foregroundStyle(ink)
@@ -1023,60 +1118,22 @@ struct ContentView: View {
         let parts=text.split(separator:"/");guard parts.count==2,let n=Int(parts[0]),let d=Int(parts[1]),d>0 else{return nil};return(n,d)
     }
 
-    private func fractionChoiceButton(_ value:String,_ q:Question)->some View {
-        let isSelected=selectedAnswer == value && answered
-        let isPreview=fractionPreview == value && !answered
-        let foreground:Color = isSelected ? (value == q.answer ? .green : .red) : ink
-        let background:Color = isSelected ? (value == q.answer ? Color.green.opacity(0.1) : Color.red.opacity(0.08)) : (isPreview ? Color.orange.opacity(0.12) : surface)
-        return Button { choose(value,q) } label: {
-            HStack(spacing:10) {
-                Text(value).font(.system(size:14,weight:.black,design:.rounded))
-                Spacer()
-                if isSelected { Image(systemName:value == q.answer ? "checkmark.circle.fill":"xmark.circle.fill") }
-                else if isPreview { Image(systemName:"circle.inset.filled").foregroundStyle(.orange) }
-            }.foregroundStyle(foreground).padding(8).frame(maxWidth:.infinity).background(background,in:RoundedRectangle(cornerRadius:13))
-        }.buttonStyle(.plain).disabled(answered)
-    }
-
     private func dropSlot(text:String?,kind:String,minWidth:CGFloat,onDrop:@escaping(String)->Void)->some View {
         RoundedRectangle(cornerRadius:9).fill(text == nil ? surface : slotValueSurface).frame(minWidth:minWidth,maxWidth:.infinity,minHeight:41).overlay(RoundedRectangle(cornerRadius:9).strokeBorder(Color.gray.opacity(0.35),style:StrokeStyle(lineWidth:1.5,dash:[5,4]))).overlay {
             Text(text ?? (kind == "N" ? "?" : "op")).font(.system(size:17,weight:.black,design:.rounded)).foregroundStyle(ink)
         }.dropDestination(for:String.self) { items, _ in
             guard !answered, let item=items.first, item.hasPrefix(kind+":") else{return false}
-            onDrop(String(item.dropFirst(2)));selectedBoardTile=nil;boardAnswer=nil;showBoardFeedback=false;return true
+            onDrop(String(item.dropFirst(2)));selectedBoardTile=nil;boardAnswer=nil;return true
         }.onTapGesture {
             guard !answered,let item=selectedBoardTile,item.hasPrefix(kind+":") else{return}
-            onDrop(String(item.dropFirst(2)));selectedBoardTile=nil;boardAnswer=nil;showBoardFeedback=false
+            onDrop(String(item.dropFirst(2)));selectedBoardTile=nil;boardAnswer=nil
         }
     }
 
     private func evaluateBoard(_ q:Question)->Double? {
         guard boardValues.count == q.operands.count,boardOperators.count == q.operands.count-1,
               boardValues.allSatisfy({$0 != nil}),boardOperators.allSatisfy({$0 != nil}) else{return nil}
-        var numbers=boardValues.compactMap{ $0 }.map(Double.init)
-        var ops=boardOperators.compactMap{$0}
-        // Powers bind more tightly than multiplication and are evaluated right to left.
-        var powerIndex=ops.count-1
-        while powerIndex >= 0 {
-            if ops[powerIndex] == "^" {
-                let value=pow(numbers[powerIndex],numbers[powerIndex+1])
-                guard value.isFinite else{return nil}
-                numbers[powerIndex]=value
-                numbers.remove(at:powerIndex+1);ops.remove(at:powerIndex)
-            }
-            powerIndex -= 1
-        }
-        var i=0
-        while i < ops.count {
-            if ops[i] == "×" || ops[i] == "÷" {
-                guard ops[i] != "÷" || numbers[i+1] != 0 else{return nil}
-                numbers[i] = ops[i] == "×" ? numbers[i]*numbers[i+1] : numbers[i]/numbers[i+1]
-                numbers.remove(at:i+1);ops.remove(at:i)
-            } else { i += 1 }
-        }
-        var result=numbers[0]
-        for (index,op) in ops.enumerated() { result += op == "+" ? numbers[index+1] : -numbers[index+1] }
-        return result.isFinite ? result : nil
+        return QuestionGenerator.evaluateBoardExpression(numbers:boardValues.compactMap{$0}.map(Double.init),operators:boardOperators.compactMap{$0})
     }
 
     private func formatted(_ result:Double)->String { result.rounded() == result ? String(Int(result)) : String(format:"%.2f",result) }
@@ -1085,41 +1142,42 @@ struct ContentView: View {
     private func answerStroke(_ c:String,_ q:Question)->Color { guard answered,selectedAnswer==c else{return .clear};return c==q.answer ? .green:.red }
     private func choose(_ choice:String,_ q:Question){
         if q.fractionNumerator != nil && !answered { fractionPreview=choice;return }
-        selectedAnswer=choice;answered=true;boardAnswer=choice == q.answer ? "correct":"wrong";showBoardFeedback=true;round += 1;if choice==q.answer{awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");streak=max(streak,1)}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)}
+        selectedAnswer=choice;answered=true;boardAnswer=choice == q.answer ? "correct":"wrong";round += 1;if choice==q.answer{awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday()}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)}
     }
     private func checkFraction(_ q:Question){
-        guard let (_, targetDenominator)=fractionParts(q.answer), let (answerNumerator, answerDenominator)=fractionParts(q.answer), !fractionPieces.isEmpty else{return}
-        let isCorrect=fractionPieces.count * answerDenominator == answerNumerator * targetDenominator
-        selectedAnswer=isCorrect ? q.answer : "\(fractionPieces.count)/\(targetDenominator)";answered=true;boardAnswer=isCorrect ? "correct":"wrong";showBoardFeedback=true;round += 1
-        if isCorrect { awardCorrectAnswerXP(for:selectedTopic?.id ?? "fractions");streak=max(streak,1) } else { recordTopicAnswer(selectedTopic?.id ?? "fractions",correct:false,question:q) }
+        // The circle is cut into the answer's denominator, so the piece count must match its numerator.
+        guard let (answerNumerator, denominator)=fractionParts(q.answer), !fractionPieces.isEmpty else{return}
+        let isCorrect=fractionPieces.count == answerNumerator
+        selectedAnswer=isCorrect ? q.answer : "\(fractionPieces.count)/\(denominator)";answered=true;boardAnswer=isCorrect ? "correct":"wrong";round += 1
+        if isCorrect { awardCorrectAnswerXP(for:selectedTopic?.id ?? "fractions");recordPlayToday() } else { recordTopicAnswer(selectedTopic?.id ?? "fractions",correct:false,question:q) }
     }
     private func retryFraction(){
-        answered=false;selectedAnswer=nil;fractionPieces.removeAll();boardAnswer=nil;showBoardFeedback=false
+        answered=false;selectedAnswer=nil;fractionPieces.removeAll();boardAnswer=nil
     }
     private func tapYourFractionCircle(denominator:Int){
         guard !answered else{return}
         if let next=(0..<denominator).first(where:{!fractionPieces.contains($0)}) { fractionPieces.insert(next) }
     }
     private func resetBoard(for q:Question){boardValues=Array(repeating:nil,count:q.operands.count);boardOperators=Array(repeating:nil,count:max(0,q.operands.count-1));selectedBoardTile=nil}
-    private func nextQuestion(){activeReviewChallengeID=nil;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;showBoardFeedback=false;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:selectedTopic ?? topics[0],grade:grade);question=q;resetBoard(for:q)}
-    private func startGame(topic:Topic){activeReviewChallengeID=nil;selectedTopic=topic;selectedTab="Home";round=0;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;showBoardFeedback=false;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:topic,grade:grade);question=q;resetBoard(for:q)}
+    private func nextQuestion(){activeReviewChallengeID=nil;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:selectedTopic ?? topics[0],grade:grade);question=q;resetBoard(for:q)}
+    private func startGame(topic:Topic){activeReviewChallengeID=nil;selectedTopic=topic;selectedTab="Home";round=0;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:topic,grade:grade);question=q;resetBoard(for:q)}
     private func startReview(_ challenge:ReviewChallenge){
         guard let topic=topics.first(where:{$0.id == challenge.topicID}) else{return}
-        grade=challenge.grade;selectedTopic=topic;selectedTab="Review";question=challenge.question;activeReviewChallengeID=challenge.id;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;showBoardFeedback=false;answered=false;showHint=false;resetBoard(for:challenge.question)
+        grade=challenge.grade;selectedTopic=topic;selectedTab="Review";question=challenge.question;activeReviewChallengeID=challenge.id;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;resetBoard(for:challenge.question)
     }
     private func retryReviewedQuestion(_ q:Question){
-        selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;showBoardFeedback=false;answered=false;showHint=false;resetBoard(for:q)
+        selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;resetBoard(for:q)
     }
     private func finishReview(){
-        activeReviewChallengeID=nil;question=nil;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;showBoardFeedback=false;answered=false;showHint=false;selectedTab="Review"
+        activeReviewChallengeID=nil;question=nil;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;selectedTab="Review"
     }
-    private func navigate(to page:String){ activeReviewChallengeID=nil;selectedTab=page; question=nil; selectedAnswer=nil; fractionPreview=nil;fractionPieces=[]; boardAnswer=nil; showBoardFeedback=false; answered=false }
+    private func navigate(to page:String){ activeReviewChallengeID=nil;selectedTab=page; question=nil; selectedAnswer=nil; fractionPreview=nil;fractionPieces=[]; boardAnswer=nil;  answered=false }
 
     private func exampleToken(_ value:String,_ tint:Color = Color(red:0.91,green:0.94,blue:0.98))->some View {
         Text(value).font(.system(size:15,weight:.black,design:.rounded)).foregroundStyle(Color.black.opacity(0.82)).padding(.horizontal,10).padding(.vertical,7).background(tint,in:RoundedRectangle(cornerRadius:9))
     }
 
-    @ViewBuilder private func visualExampleView()->some View {
+    @ViewBuilder private func visualExampleView(for q:Question)->some View {
         VStack(spacing:9) {
             HStack(spacing:5) {
                 Image(systemName:"lightbulb").font(.system(size:9,weight:.bold))
@@ -1129,7 +1187,7 @@ struct ContentView: View {
             case "fractions":
                 HStack(spacing:5){exampleToken("a / b");exampleToken("× k / k");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("? / ?",.green.opacity(0.2))}
             case "number":
-                if grade <= 3 {HStack(spacing:5){exampleToken("a");exampleToken("+",.orange.opacity(0.2));exampleToken("b");exampleToken("=");exampleToken("?",.green.opacity(0.2))}}
+                if grade <= 3 {HStack(spacing:5){exampleToken("a");exampleToken(q.operators.count == 1 ? q.operators[0] : "+",.orange.opacity(0.2));exampleToken("b");exampleToken("=");exampleToken("?",.green.opacity(0.2))}}
                 else if grade <= 8 {HStack(spacing:5){exampleToken("two-digit × two-digit");exampleToken("→");exampleToken("partial products",.green.opacity(0.2))}}
                 else {HStack(spacing:4){exampleToken("principal × rate × time");exampleToken("÷ 100");exampleToken("= ?",.green.opacity(0.2))}}
             case "algebra":
@@ -1143,7 +1201,7 @@ struct ContentView: View {
             case "data":
                 HStack(alignment:.bottom,spacing:8){ForEach(Array([24,38,18,50].enumerated()),id:\.offset){index,item in VStack(spacing:3){RoundedRectangle(cornerRadius:4).fill([Color.blue,Color.orange,Color.green,Color.purple][index].opacity(0.65)).frame(width:24,height:CGFloat(item));Text(["A","B","C","Σ"][index]).font(.system(size:9,weight:.bold))}}}
             case "decimals_percentages":
-                HStack(spacing:7){exampleToken("fraction");Image(systemName:"↔").foregroundStyle(.secondary);exampleToken("decimal",.green.opacity(0.18));exampleToken("↔");exampleToken("percent")}
+                HStack(spacing:7){exampleToken("fraction");Image(systemName:"arrow.left.and.right").foregroundStyle(.secondary);exampleToken("decimal",.green.opacity(0.18));exampleToken("↔");exampleToken("percent")}
             case "probability":
                 HStack(spacing:5){exampleToken("favourable outcomes");exampleToken("÷");exampleToken("all outcomes");exampleToken("=");exampleToken("probability",.green.opacity(0.2))}
             case "data_visualization":

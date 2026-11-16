@@ -20,4 +20,4 @@ Avoid `swift run` for launching the GUI. Swift Package Manager starts the execut
 
 ## Curriculum note
 
-Canada's provinces and territories set their own detailed curriculum expectations. This starter offers sample challenge generators for Grades 1–12; it is not a complete province-aligned curriculum. A production curriculum needs a selected province or territory and reviewed learning outcomes for each grade.
+Math Quest is not yet aligned to a specific curriculum. Its challenges are sample generators for Grades 1–12, and their grade placement has not been verified against the Ontario Mathematics curriculum. Before classroom use, a teacher should review each topic and grade against the current Ontario document. Sampling-bias questions are offered from Grade 7 up, and the Grade 5 data challenges use only the simpler fair-sample idea.

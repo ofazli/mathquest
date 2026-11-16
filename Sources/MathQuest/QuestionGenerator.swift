@@ -86,6 +86,12 @@ struct QuestionGenerator {
             if g <= 8 {if Bool.random(){let map=Int.random(in:3...12),scale=Int.random(in:4...15);return build("On a map, a trail is \(map) cm long. The scale is 1 cm = \(scale) km. What is the real distance?",ans:map*scale,story:"Use the map scale to plan a hiking route.",hint:"Multiply map distance by kilometres per centimetre.",operands:[map,scale],operators:["×"])};let angle=Int.random(in:35...125);return build("Two angles in a triangle are 40° and \(angle)°. Find the third angle.",ans:140-angle,story:"Solve the final angle in a triangle puzzle.",hint:"The angles in a triangle add to 180°.",operands:[180,40,angle],operators:["−","−"])}
             let r=Int.random(in:4...30);return build("Using π ≈ 3, find the circumference of a circle with radius \(r) cm.",ans:6*r,story:"Measure the distance around a circular track.",hint:"Circumference = 2 × π × radius. Use π ≈ 3.",operands:[2,3,r],operators:["×","×"])
         case "data":
+            if g >= 7 && Bool.random() { return SamplingBiasQuestion.make() }
+            if g >= 7 && Bool.random() {
+                // Percents of survey data are a Grade 7 expectation (organize data using percentages).
+                let total=[20,40,100].randomElement() ?? 20,percent=[10,20,25,50,75].randomElement() ?? 25,count=total*percent/100
+                return percentOfTotalQuestion(count:count,total:total,percent:percent)
+            }
             if g <= 3 {let a=Int.random(in:3...9),b=Int.random(in:2...8),c=Int.random(in:4...10);return build("Pine cones: \(a) • Acorns: \(b) • Berries: \(c). How many altogether?",ans:a+b+c,story:"Read Maple's forest picture graph.",hint:"Add the three categories.",operands:[a,b,c],operators:["+","+"])}
             if g <= 8 {let a=Int.random(in:10...45),b=Int.random(in:4...9),c=Int.random(in:15...65),small=min(a,min(b,c)),large=max(a,max(b,c));if Bool.random(){return build("A data set has values \(a), \(b), and \(c). What is the range?",ans:large-small,story:"Compare the spread in three teams' scores.",hint:"Range = largest value − smallest value.",operands:[large,small],operators:["−"])};let score=[12,16,20].randomElement() ?? 12;return build("Four quiz scores are 6, 8, 10 and \(score). What is their total?",ans:24+score,story:"Add the team's scores before posting the results.",hint:"Add all four scores together.",operands:[6,8,10,score],operators:["+","+","+"])}
             let total=Int.random(in:40...200),part=Int.random(in:10...total/2);return build("\(part) of \(total) students chose cycling. What percent is that? (nearest whole percent)",ans:Int((Double(part)/Double(total)*100).rounded()),story:"Turn survey results into a percentage for the class chart.",hint:"Divide part by total, then multiply by 100.",operands:[part,100,total],operators:["×","÷"])
@@ -680,28 +686,29 @@ struct QuestionGenerator {
         case 0:
             return conceptQuestion("A school wants to know students' favourite lunch. Which sample is most representative?",answer:"Randomly ask students from every grade",choices:["Randomly ask students from every grade","Ask only the Grade 5 class","Ask only students in the cafeteria line","Ask only the principal's friends"],hint:"A representative sample includes a fair mix from the population.",story:"Choose a sampling technique that represents the population.")
         case 1:
-            let total=[20,40,100].randomElement() ?? 20,percent=[10,20,25,50,75].randomElement() ?? 25,count=total*percent/100
-            return build("A survey has \(count) yes responses from \(total) people. What percent answered yes?",ans:percent,story:"Organize and interpret data using relative frequency and benchmark percents.",hint:"Write the responses as a fraction of the total, then use an equivalent percent such as 10%, 25%, 50%, or 75%.",operands:[count,100,total],operators:["×","÷"])
+            // Grade 5 expects relative-frequency tables as fractions; percents of survey data are Grade 7 (see generateQuestion).
+            let total=[20,25,30,40].randomElement() ?? 20,part=Int.random(in:4...total/2)
+            return conceptQuestion("A survey of \(total) students has \(part) choosing soccer. What is the relative frequency of soccer as a fraction?",answer:"\(part)/\(total)",choices:["\(part)/\(total)","\(total)/\(part)","\(part)/\(total-part)","1/\(part)"],hint:"Relative frequency is the category count divided by the total.",story:"Read and organize a relative-frequency table.")
         case 2:
-            return conceptQuestion("Which table entry is a relative frequency?",answer:"The category count divided by the total, often shown as a fraction or percent",choices:["The category count divided by the total, often shown as a fraction or percent","The category name","The largest raw count only","The survey question"],hint:"Relative frequency compares a category count with all responses.",story:"Read and organize a relative-frequency table.")
+            return relativeFrequencyQuestion()
         case 3:
-            return conceptQuestion("Why might a poll of only students on the school basketball team give a biased answer about favourite sports?",answer:"The sample does not represent the whole school",choices:["The sample does not represent the whole school","The poll has a title","The responses are numbers","The team knows the sport"],hint:"Consider whether every part of the population had a fair chance to be included.",story:"Evaluate data collection and sample bias.")
+            // Grade 5 keeps the simpler idea of a fair sample. The full sampling-bias question is Grade 7+.
+            return conceptQuestion("A class wants to know which sport the whole school likes best. Which group would give the fairest picture?",answer:"Students chosen at random from every grade",choices:["Students chosen at random from every grade","Only the members of the basketball team","Only the students in one classroom","Only the students who arrive by bus"],hint:"A fair sample includes a random mix of students from the whole school.",story:"Choose a sample that represents the whole school.")
         case 4:
             let tenths=[Int.random(in:10...29),Int.random(in:20...39),Int.random(in:30...49),Int.random(in:40...59)].sorted(),values=tenths.map{String(format:"%.1f",Double($0)/10)},mean=Double(tenths.reduce(0,+))/40
-            return build("Find the mean of \(values.joined(separator:", ")).",ans:mean,story:"Determine and interpret the mean of decimal data to tenths.",hint:"Add all values and divide by how many values there are.",operands:[],operators:[])
+            return build("Find the mean of \(values.joined(separator:", ")).",ans:mean,story:"Determine and interpret the mean of decimal data to tenths.",hint:"Add all values and divide by how many values there are.",operands:[],operators:[],decimalPlaces:2,minimumPlaces:0)
         case 5:
             let values=(0..<5).map{_ in Int.random(in:10...80)}.sorted(),median=Double(values[2])/10
-            return build("Find the median of \(values.map{String(format:"%.1f",Double($0)/10)}.joined(separator:", ")).",ans:median,story:"Determine the median of a decimal data set.",hint:"Order the values and find the one in the middle.",operands:[],operators:[])
+            return build("Find the median of \(values.map{String(format:"%.1f",Double($0)/10)}.joined(separator:", ")).",ans:median,story:"Determine the median of a decimal data set.",hint:"Order the values and find the one in the middle.",operands:[],operators:[],decimalPlaces:1,minimumPlaces:1)
         case 6:
-            let mode=Int.random(in:2...12),other=Int.random(in:13...24),values=[mode,mode,mode,other,Int.random(in:13...24)].shuffled()
-            return build("Find the mode of \(values.map{String(format:"%.1f",Double($0)/10)}.joined(separator:", ")).",ans:Double(mode)/10,story:"Identify the most frequent value in a decimal data set.",hint:"The mode is the value that appears most often.",operands:[],operators:[])
+            return modeQuestionWithRetry(values:2...25,places:1,story:"Identify the most frequent value in a decimal data set.")
         default:
             let total=Int.random(in:30...100),part=Int.random(in:1...total-1)
             return conceptQuestion("A data set has \(part) responses in one category out of \(total). What fraction of responses is that before simplifying?",answer:"\(part)/\(total)",choices:["\(part)/\(total)","\(total)/\(part)","\(part)/\(total-part)","1/\(part)"],hint:"Use category count as the numerator and total count as the denominator.",story:"Interpret a category's frequency as part of the total data.")
         }
     }
 
-    private func conceptQuestion(_ prompt:String,answer:String,choices:[String],hint:String,story:String)->Question {
+    func conceptQuestion(_ prompt:String,answer:String,choices:[String],hint:String,story:String)->Question {
         let options=Array(Set(choices+[answer])).shuffled()
         return Question(prompt:prompt,choices:options,answer:answer,hint:hint,story:story,operands:[],operators:[],numberTiles:[],fractionNumerator:nil,fractionDenominator:nil)
     }
@@ -844,8 +851,7 @@ struct QuestionGenerator {
                 let sum=values.reduce(0,+)
                 return build("Data set: \(values.map(String.init).joined(separator:", ")). What is the mean?",ans:sum/values.count,story:"Find the mean of a whole-number data set.",hint:"Add all values and divide by the number of values.",operands:[sum,values.count],operators:["÷"])
             case 4:
-                let mode=Int.random(in:2...8),a=Int.random(in:1...9),b=Int.random(in:1...9)
-                return build("Data set: \(mode), \(a), \(mode), \(b), \(mode). What is the mode?",ans:mode,story:"Identify the value that occurs most often.",hint:"The mode is the value that appears most often.",operands:[mode],operators:[])
+                return modeQuestionWithRetry(values:2...9,places:0,story:"Identify the value that occurs most often.")
             case 5:
                 let leaves=(0..<4).map{_ in Int.random(in:0...9)}.sorted()
                 return build("Stem-and-leaf plot: 2 | \(leaves.map(String.init).joined(separator:" ")). How many values are in the 20s?",ans:leaves.count,story:"Read a stem-and-leaf plot using its key and leaves.",hint:"The stem 2 represents the twenties; count the leaves beside it.",operands:[leaves.count],operators:[])
@@ -952,7 +958,17 @@ struct QuestionGenerator {
         }
     }
 
+    /// Grade 1 fractions are only halves and fourths, shared fairly (Ontario B1.7, Grade 1).
+    private func makeGradeOneFractionQuestion()->Question {
+        if Bool.random() {
+            let sharers=[2,4].randomElement() ?? 2,other=6-sharers
+            return conceptQuestion("One whole pizza is shared equally by \(sharers) friends. What fraction of the pizza does each friend get?",answer:"1/\(sharers)",choices:["1/\(sharers)","1/\(other)","\(sharers)/1","\(sharers)/\(sharers)"],hint:"Count the equal parts. Each friend gets one of the \(sharers) equal parts.",story:"Share a whole fairly and name each share.")
+        }
+        return conceptQuestion("Two fourths of a pizza are the same amount as how much of the pizza?",answer:"one half",choices:["one half","one quarter","two wholes","one third"],hint:"Two of the four equal parts make half of the pizza.",story:"Show that two fourths and one half are equal in fair-sharing contexts.")
+    }
+
     private func makeFractionQuestion(grade:Int)->Question {
+        if grade == 1 { return makeGradeOneFractionQuestion() }
         if grade <= 3 {
             switch Int.random(in:0...3) {
             case 0:
@@ -1018,7 +1034,7 @@ struct QuestionGenerator {
         let correct=String(ans)
         let choices=integerChoices(for:ans).map(String.init).shuffled()
         let board=boardSetup(operands:operands,operators:operators,answer:Double(ans))
-        return Question(prompt:finalPrompt,choices:choices,answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil)
+        return withVerifiedSteps(Question(prompt:finalPrompt,choices:choices,answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil),operands:operands,operators:operators,answer:Double(ans))
     }
 
     /// Returns the answer plus three distinct distractors. Distractors stay
@@ -1125,22 +1141,234 @@ struct QuestionGenerator {
         return ("Calculate: \(expression).","Follow the operations in order, using multiplication and division before addition and subtraction.")
     }
 
-    private func build(_ prompt:String,ans:Double,story:String,hint:String,operands:[Int],operators:[String])->Question {
+    private func build(_ prompt:String,ans:Double,story:String,hint:String,operands:[Int],operators:[String],decimalPlaces:Int=2,minimumPlaces:Int=2)->Question {
         let rounded=(ans*100).rounded()/100
         let generatedExpression=arithmeticExpression(operands:operands,operators:operators,answer:rounded)
         let useCalculationForm=generatedExpression != nil && Int.random(in:0...2) == 0
         let finalPrompt=useCalculationForm ? generatedExpression!.prompt : prompt
         let finalStory=useCalculationForm ? "Solve the number sentence and give your answer to the nearest cent." : story
         let finalHint=useCalculationForm ? generatedExpression!.hint : hint
-        let correct=String(format:"%.2f",rounded)
+        let correct=formatDecimal(rounded,maxPlaces:decimalPlaces,minPlaces:minimumPlaces)
         var options=Set([correct])
         for offset in [-2.0,-1.0,1.0,2.0,3.0,4.0] where options.count < 4 {
             let candidate=rounded+offset
             if rounded >= 0 && candidate < 0 { continue }
-            options.insert(String(format:"%.2f",candidate))
+            options.insert(formatDecimal(candidate,maxPlaces:decimalPlaces,minPlaces:minimumPlaces))
         }
         let board=boardSetup(operands:operands,operators:operators,answer:rounded)
-        return Question(prompt:finalPrompt,choices:Array(options).shuffled(),answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil)
+        return withVerifiedSteps(Question(prompt:finalPrompt,choices:Array(options).shuffled(),answer:correct,hint:finalHint,story:finalStory,operands:board.operands,operators:board.operators,numberTiles:board.tiles,fractionNumerator:nil,fractionDenominator:nil),operands:operands,operators:operators,answer:rounded)
+    }
+
+    /// Formats a decimal with `maxPlaces` digits, then trims trailing zeros down to `minPlaces`.
+    /// Money keeps two places ("2.50"); tenths data keeps one ("0.7", "2.0"). This text is only for
+    /// display. Choices and answers are both produced here, so comparing them as text is exact.
+    func formatDecimal(_ value:Double,maxPlaces:Int=2,minPlaces:Int=0)->String {
+        var text=String(format:"%.\(maxPlaces)f",value)
+        var digits=maxPlaces
+        while digits > minPlaces && text.hasSuffix("0") {
+            text.removeLast()
+            digits -= 1
+        }
+        if digits == 0 && text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
+    private func timesText(_ count:Int)->String { count == 1 ? "1 time" : "\(count) times" }
+
+    /// A mode question from a data set with exactly one most-frequent value. Returns nil when there is
+    /// no single mode (none, or a tie) or too few distinct values for three distractors.
+    /// `values` are integers scaled by 10^places, so counting is exact and never uses floating point.
+    /// Distractors are other values from the data set, plus the mean or median when it is exact and different.
+    func modeQuestion(values:[Int],places:Int,story:String)->Question? {
+        var counts:[Int:Int]=[:]
+        for value in values { counts[value,default:0] += 1 }
+        guard let top=counts.values.max() else { return nil }
+        let modes=counts.keys.filter { counts[$0] == top }
+        guard modes.count == 1, let mode=modes.first else { return nil }
+
+        let scale=pow(10.0,Double(places))
+        func display(_ scaled:Int)->String { formatDecimal(Double(scaled)/scale,maxPlaces:places,minPlaces:places) }
+        let correct=display(mode)
+
+        var seen:Set<String>=[correct]
+        var picked:[(choice:String,feedback:String)]=[]
+        func add(_ choice:String,_ feedback:String) {
+            guard picked.count < 3, !seen.contains(choice) else { return }
+            seen.insert(choice)
+            picked.append((choice,feedback))
+        }
+
+        // Other data values, most frequent first: they look plausible but still occur fewer times than the mode.
+        let others=counts.filter { $0.key != mode }.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+        let dataChoices:[(String,String)]=others.map { entry in
+            (display(entry.key),"\(display(entry.key)) appears \(timesText(entry.value)), but \(correct) appears \(timesText(top)). The mode is the value that appears most often.")
+        }
+
+        // Common mix-ups: the mean (average) and the median (middle value).
+        var misconceptions:[(String,String)]=[]
+        let total=values.reduce(0,+)
+        if total % values.count == 0 {
+            misconceptions.append((display(total/values.count),"That is the mean (the average), not the mode. The mode is the value that appears most often."))
+        }
+        if values.count % 2 == 1 {
+            misconceptions.append((display(values.sorted()[values.count/2]),"That is the median (the middle value when the data is in order), not the mode. The mode is the value that appears most often."))
+        }
+
+        for choice in dataChoices.prefix(2) { add(choice.0,choice.1) }
+        for choice in misconceptions { add(choice.0,choice.1) }
+        for choice in dataChoices { add(choice.0,choice.1) }
+        guard picked.count == 3 else { return nil }
+
+        let ascending=counts.keys.sorted()
+        let countLine=ascending.map { "\(display($0)) appears \(timesText(counts[$0] ?? 0))" }.joined(separator:"; ")
+        var question=Question(
+            prompt:"Find the mode of \(values.map(display).joined(separator:", ")).",
+            choices:([correct]+picked.map { $0.choice }).shuffled(),
+            answer:correct,
+            hint:"Count how many times each value appears. The mode is the value that appears most often.",
+            story:story,
+            operands:[],operators:[],numberTiles:[],fractionNumerator:nil,fractionDenominator:nil
+        )
+        question.explanation = "The mode is the number that appears most often. Counting each value: \(countLine). \(correct) appears most often, so the mode is \(correct). Remember: mode = most frequent value."
+        question.visual = .frequencyChart(FrequencyChart(
+            title:"How often each value appears",
+            bars:ascending.map { FrequencyChart.Bar(label:display($0),count:counts[$0] ?? 0) }
+        ))
+        question.choiceFeedback = Dictionary(uniqueKeysWithValues:picked.map { ($0.choice,$0.feedback) })
+        return question
+    }
+
+    /// Data with one clear mode: the mode appears 3 or 4 times, one other value appears fewer times,
+    /// and two values appear once. Four distinct values give three distractors.
+    func randomModeValues(_ range:ClosedRange<Int>)->[Int] {
+        var pool=Array(range).shuffled()
+        let mode=pool.removeLast(),second=pool.removeLast(),other=pool.removeLast(),last=pool.removeLast()
+        let top=Int.random(in:3...4),secondCount=Int.random(in:1...(top-1))
+        return (Array(repeating:mode,count:top)+Array(repeating:second,count:secondCount)+[other,last]).shuffled()
+    }
+
+    /// Builds a mode question from random data, redrawing until the data has a single mode.
+    func modeQuestionWithRetry(values range:ClosedRange<Int>,places:Int,story:String)->Question {
+        for _ in 0..<20 {
+            if let question=modeQuestion(values:randomModeValues(range),places:places,story:story) { return question }
+        }
+        return conceptQuestion("Find the mode of 2, 3, 3, 5, 7.",answer:"3",choices:["3","4","5","7"],hint:"The mode is the value that appears most often.",story:story)
+    }
+
+    /// "count out of total" as a percent. The steps, the hundred-grid and the misconception choices all
+    /// come from these three numbers, so they cannot disagree with the answer.
+    func percentOfTotalQuestion(count:Int,total:Int,percent:Int)->Question {
+        precondition(total > 0 && count * 100 == percent * total, "percent must be exact for the data")
+        var choices:[(text:String,feedback:String?)]=[(String(percent),nil)]
+        let misconceptions:[(Int,String)]=[
+            (count,"That is the number of yes answers, not the percent. A percent compares the yes answers with 100."),
+            (total,"That is the total number of people, not the percent who answered yes."),
+            (total-count,"That is the number of people who did not answer yes, not the percent who did.")
+        ]
+        for (value,why) in misconceptions where choices.count < 4 && value != percent && value > 0 && !choices.contains(where:{$0.text == String(value)}) {
+            choices.append((String(value),why))
+        }
+        for value in integerChoices(for:percent) where choices.count < 4 && !choices.contains(where:{$0.text == String(value)}) {
+            choices.append((String(value),nil))
+        }
+        var step=1
+        while choices.count < 4 {
+            let value=percent+step
+            if !choices.contains(where:{$0.text == String(value)}) { choices.append((String(value),nil)) }
+            step += 1
+        }
+        let board=boardSetup(operands:[count,100,total],operators:["×","÷"],answer:Double(percent))
+        var question=Question(
+            prompt:"A survey has \(count) yes responses from \(total) people. What percent answered yes?",
+            choices:choices.map { $0.text }.shuffled(),
+            answer:String(percent),
+            hint:"If \(count) out of \(total) people answered yes, how many out of every 100 answered yes?",
+            story:"Organize and interpret data using relative frequency and benchmark percents.",
+            operands:board.operands,operators:board.operators,numberTiles:board.tiles,
+            fractionNumerator:nil,fractionDenominator:nil
+        )
+        question.explanation = "\(count) out of every \(total) people answered \"Yes\", so \(percent)% answered \"Yes\"."
+        question.reminder = "Percent means \"out of 100\"."
+        question.steps = [
+            "Identify the values: \(count) people answered \"Yes\" out of \(total) people.",
+            "Write the fraction: \(count) / \(total)",
+            "Convert to a percent: (\(count) / \(total)) × 100 = \(percent)%"
+        ]
+        question.choiceFeedback = Dictionary(uniqueKeysWithValues:choices.compactMap { choice in choice.feedback.map { (choice.text,$0) } })
+        question.visual = .hundredGrid(HundredGrid(
+            title:"Each square is 1% of the \(total) people",
+            highlighted:percent,
+            highlightLabel:"Answered yes: \(percent) squares = \(percent)%",
+            remainderLabel:"Other responses: \(100-percent) squares = \(100-percent)%"
+        ))
+        return question
+    }
+
+    /// Attaches solution steps only when they are verified: the steps must evaluate to the answer
+    /// using the same precedence rules as the number board. Otherwise the question has no steps.
+    private func withVerifiedSteps(_ question:Question,operands:[Int],operators:[String],answer:Double)->Question {
+        var question=question
+        guard let steps=Self.solutionSteps(numbers:operands.map(Double.init),operators:operators),
+              let value=Self.evaluateBoardExpression(numbers:operands.map(Double.init),operators:operators),
+              abs(value-answer) < 0.0001 else { return question }
+        question.steps=steps
+        return question
+    }
+
+    /// Ordered steps for an expression, in the order the number board evaluates it: powers (right to left),
+    /// then × and ÷ (left to right), then + and − (left to right). Nil when the expression is invalid.
+    static func solutionSteps(numbers input:[Double],operators input2:[String])->[String]? {
+        guard evaluateBoardExpression(numbers:input,operators:input2) != nil else { return nil }
+        var numbers=input,ops=input2
+        var steps:[String]=[]
+        func record(_ a:Double,_ op:String,_ b:Double,_ result:Double) {
+            steps.append("\(decimalText(a)) \(op) \(decimalText(b)) = \(decimalText(result))")
+        }
+        var powerIndex=ops.count-1
+        while powerIndex >= 0 {
+            if ops[powerIndex] == "^" {
+                let value=pow(numbers[powerIndex],numbers[powerIndex+1])
+                record(numbers[powerIndex],"^",numbers[powerIndex+1],value)
+                numbers[powerIndex]=value
+                numbers.remove(at:powerIndex+1);ops.remove(at:powerIndex)
+            }
+            powerIndex -= 1
+        }
+        var i=0
+        while i < ops.count {
+            if ops[i] == "×" || ops[i] == "÷" {
+                let value=ops[i] == "×" ? numbers[i]*numbers[i+1] : numbers[i]/numbers[i+1]
+                record(numbers[i],ops[i],numbers[i+1],value)
+                numbers[i]=value
+                numbers.remove(at:i+1);ops.remove(at:i)
+            } else { i += 1 }
+        }
+        var result=numbers[0]
+        for (index,op) in ops.enumerated() {
+            let next=numbers[index+1]
+            let value=op == "+" ? result+next : result-next
+            record(result,op,next,value)
+            result=value
+        }
+        return steps
+    }
+
+    /// Whole numbers stay whole; other values show up to two decimal places without trailing zeros.
+    static func decimalText(_ value:Double)->String {
+        if value.rounded() == value { return String(Int(value)) }
+        var text=String(format:"%.2f",value)
+        while text.hasSuffix("0") { text.removeLast() }
+        return text
+    }
+
+    /// Relative frequency is a concept, so the explanation is a definition plus an example whose numbers
+    /// are labelled as illustrative. Its calculation is checked: 8 ÷ 20 = 0.4 = 40%.
+    private func relativeFrequencyQuestion()->Question {
+        var question=conceptQuestion("Which table entry is a relative frequency?",answer:"The category count divided by the total, often shown as a fraction or percent",choices:["The category count divided by the total, often shown as a fraction or percent","The category name","The largest raw count only","The survey question"],hint:"Relative frequency compares a category count with all responses.",story:"Read and organize a relative-frequency table.")
+        question.explanation="Relative frequency tells how often a result occurs compared with the total number of observations. It is the category count divided by the total."
+        question.example="Illustrative example only, not real survey results.\n20 students were asked their favourite sport: Basketball 8, Soccer 7, Hockey 5 (total 20).\nBasketball: 8 ÷ 20 = 0.4 = 40%, so basketball is 40% of all responses."
+        question.reminder="Relative frequency = category frequency ÷ total frequency."
+        return question
     }
 
     private func arithmeticExpression(operands:[Int],operators:[String],answer:Double)->(prompt:String,hint:String)? {
@@ -1174,4 +1402,44 @@ struct QuestionGenerator {
         return ("Calculate: \(expression). Give your answer to the nearest cent.","Follow the operations in order, then round to two decimal places.")
     }
 
+}
+
+
+/// The Grade 5 sampling-bias question: why a survey of only basketball team members is biased.
+/// The chart values are illustrative, not real survey data.
+enum SamplingBiasQuestion {
+    static let prompt = "Why might surveying only members of the school basketball team give a biased result about students' favourite sports?"
+    static let correctAnswer = "Basketball team members may be more likely to prefer basketball than other students."
+    static let distractors = [
+        "Every student in the school has an equal chance of being selected.",
+        "A survey always becomes accurate when more questions are asked.",
+        "The survey results will always be accurate because team members know sports."
+    ]
+    static let hint = "Think about whether basketball players have the same sports preferences as all students in the school."
+    static let story = "Evaluate data collection and sample bias."
+    static let explanation = "Surveying only basketball team members can produce biased results because these students may be more likely to prefer basketball. A better survey would include students from different groups across the school."
+
+    static let chart = SurveyChart(
+        title: "Favourite sport (% of each survey group)",
+        categories: ["Basketball", "Soccer", "Other"],
+        groups: [
+            .init(name: "Basketball Team Survey", percents: [80, 15, 5]),
+            .init(name: "Whole School Survey", percents: [30, 45, 25])
+        ]
+    )
+
+    /// Builds the question. `conceptQuestion` shuffles the choices; the correct answer
+    /// keeps its text, so validation by text still holds after randomization.
+    static func make() -> Question {
+        var question = QuestionGenerator().conceptQuestion(
+            prompt,
+            answer: correctAnswer,
+            choices: [correctAnswer] + distractors,
+            hint: hint,
+            story: story
+        )
+        question.explanation = explanation
+        question.visual = .surveyComparison(chart)
+        return question
+    }
 }

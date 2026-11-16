@@ -33,7 +33,7 @@ enum CurriculumCatalog {
 
     static let topics: [Topic] = [
         .init(id:"number", title:"Number & operations", subtitle:"Whole numbers and calculations", icon:"number", color:Color(red:0.98,green:0.46,blue:0.31), grades:1...12, strand:"Number"),
-        .init(id:"fractions", title:"Fractions & equal parts", subtitle:"Represent and compare fractions", icon:"circle.lefthalf.filled", color:Color(red:0.91,green:0.43,blue:0.63), grades:2...8, strand:"Number — fractions"),
+        .init(id:"fractions", title:"Fractions & equal parts", subtitle:"Represent and compare fractions", icon:"circle.lefthalf.filled", color:Color(red:0.91,green:0.43,blue:0.63), grades:1...8, strand:"Number — fractions"),
         .init(id:"algebra", title:"Patterns & algebra", subtitle:"Find pattern rules and solve equations", icon:"arrow.left.arrow.right", color:Color(red:0.47,green:0.42,blue:0.88), grades:1...12, strand:"Algebra"),
         .init(id:"spatial", title:"Shapes & space", subtitle:"Describe shapes, position, and movement", icon:"square.on.circle", color:Color(red:0.19,green:0.67,blue:0.62), grades:1...12, strand:"Spatial sense"),
         .init(id:"measurement", title:"Measurement", subtitle:"Measure time, length, area, and more", icon:"ruler", color:Color(red:0.98,green:0.70,blue:0.25), grades:1...12, strand:"Measurement"),

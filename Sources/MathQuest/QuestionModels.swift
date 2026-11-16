@@ -21,6 +21,122 @@ struct Question: Codable {
     let numberTiles: [Int]
     let fractionNumerator: Int?
     let fractionDenominator: Int?
+    /// Shown after the player answers, to explain the correct answer.
+    var explanation: String? = nil
+    /// A question-specific visual. Nil means the question has no meaningful visual.
+    var visual: QuestionVisual? = nil
+    /// Why a particular wrong choice is wrong, keyed by the choice text. Shown once the solution is revealed.
+    var choiceFeedback: [String: String]? = nil
+    /// Ordered solution steps, each already checked against the question's numbers. Nil when the
+    /// question type has no reliable step list; the UI then shows `explanation` only.
+    var steps: [String]? = nil
+    /// An illustrative worked example, one line per entry. Only set when clearly labelled as an example.
+    var example: String? = nil
+    /// A one-line rule or key idea to remember.
+    var reminder: String? = nil
+}
+
+/// Question-specific visuals. Each case carries its own data, so a visual is only
+/// ever shown for the question that generated it.
+enum QuestionVisual: Codable, Equatable {
+    /// Compares a biased sample with the whole population. Shown only after the answer,
+    /// because the comparison explains the correct answer.
+    case surveyComparison(SurveyChart)
+    /// How often each value appears in a data set. Used for mode questions.
+    case frequencyChart(FrequencyChart)
+    /// A 10 x 10 grid where each square is 1% of a whole. Used for percent questions.
+    case hundredGrid(HundredGrid)
+
+    /// Whether the visual must wait until the student has submitted an answer.
+    var revealsAfterAnswer: Bool {
+        switch self {
+        case .surveyComparison, .frequencyChart, .hundredGrid: return true
+        }
+    }
+
+    /// False when the data cannot support an accurate display; the UI then hides the visual.
+    var isValid: Bool {
+        switch self {
+        case .surveyComparison(let chart): return chart.isValid
+        case .frequencyChart(let chart): return chart.isValid
+        case .hundredGrid(let grid): return grid.isValid
+        }
+    }
+}
+
+/// A 100-square model. `highlighted` squares show one part; the rest show the remaining part of the whole.
+struct HundredGrid: Codable, Equatable {
+    let title: String
+    let highlighted: Int
+    let highlightLabel: String
+    let remainderLabel: String
+
+    var isValid: Bool { (0...100).contains(highlighted) && !highlightLabel.isEmpty && !remainderLabel.isEmpty }
+}
+
+/// Tracks the attempts on one question. The first attempt decides XP and the recorded result;
+/// guided retries after it give practice only and never add XP or a second record.
+struct AnswerAttempts: Equatable {
+    enum Outcome: Equatable {
+        case firstTryCorrect      // award XP, record a correct answer
+        case correctAfterRetry    // practice only: no XP, no second record
+        case wrongCanRetry        // show the guided hint, offer Try Again or Show Solution
+        case wrongFinal           // no attempts left: reveal the full solution
+    }
+
+    /// Wrong answers that may be followed by a guided retry. 0 turns guided retry off.
+    static let retriesAllowed = 1
+
+    private(set) var wrongCount = 0
+
+    /// True while a guided retry is on offer after a wrong answer.
+    var canRetry: Bool { wrongCount > 0 && wrongCount <= Self.retriesAllowed }
+
+    mutating func submit(correct: Bool) -> Outcome {
+        if correct { return wrongCount == 0 ? .firstTryCorrect : .correctAfterRetry }
+        wrongCount += 1
+        return wrongCount > Self.retriesAllowed ? .wrongFinal : .wrongCanRetry
+    }
+}
+
+/// Counts of each distinct value in a data set. Labels are the formatted values shown to the student.
+struct FrequencyChart: Codable, Equatable {
+    struct Bar: Codable, Equatable {
+        let label: String
+        let count: Int
+    }
+
+    let title: String
+    let bars: [Bar]
+
+    /// Every bar has a positive count and a unique label, and the labels are not empty.
+    var isValid: Bool {
+        !bars.isEmpty
+            && bars.allSatisfy { $0.count > 0 && !$0.label.isEmpty }
+            && Set(bars.map(\.label)).count == bars.count
+    }
+}
+
+/// A 100% stacked-bar survey chart. Each group's percents must add up to 100,
+/// and `percents` lines up with `categories`.
+struct SurveyChart: Codable, Equatable {
+    struct Group: Codable, Equatable {
+        let name: String
+        let percents: [Int]
+    }
+
+    let title: String
+    let categories: [String]
+    let groups: [Group]
+
+    /// Every group has one non-negative percent per category, and each group totals exactly 100.
+    var isValid: Bool {
+        !categories.isEmpty && !groups.isEmpty && groups.allSatisfy { group in
+            group.percents.count == categories.count
+                && group.percents.allSatisfy { $0 >= 0 }
+                && group.percents.reduce(0, +) == 100
+        }
+    }
 }
 
 struct ShopCharacter: Identifiable {

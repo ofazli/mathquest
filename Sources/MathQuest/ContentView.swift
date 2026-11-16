@@ -83,6 +83,9 @@ struct ContentView: View {
     @State private var selectedAnswer: String?
     @State private var answered = false
     @State private var showHint = false
+    @State private var hoveredChoice: String?
+    @State private var attempts = AnswerAttempts()
+    @State private var solutionShown = false
     @State private var boardAnswer: String?
     @State private var boardValues: [Int?] = []
     @State private var boardOperators: [String?] = []
@@ -974,28 +977,49 @@ struct ContentView: View {
             (isCompact ? AnyLayout(VStackLayout(spacing:16)) : AnyLayout(HStackLayout(alignment:.top,spacing:20))) {
             VStack(spacing:9) {
                 questionContainer {
-                    VStack(spacing:16) {
-                    HStack(spacing:7){ForEach(0..<5,id:\.self){i in Capsule().fill(i < round%5 ? Color.green : Color.black.opacity(0.08)).frame(height:6)}}
+                    VStack(spacing:isCompact ? 16 : 10) {
+                    HStack(spacing:7){ForEach(0..<5,id:\.self){i in Capsule().fill(i < round%5 ? Color.green : Color.black.opacity(0.12)).frame(height:9)}}
                     HStack(spacing:8){Image(systemName:(selectedTopic ?? topics[0]).icon);Text((selectedTopic ?? topics[0]).title.uppercased()).tracking(1)}.font(.system(size:10,weight:.heavy)).foregroundStyle((selectedTopic ?? topics[0]).color)
                     Text("SCENARIO").font(.system(size:9,weight:.black,design:.rounded)).tracking(0.8).foregroundStyle(.tertiary).frame(maxWidth:500,alignment:.leading)
                     Text(q.story).font(.system(size:14,weight:.medium,design:.rounded)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth:500)
-                    Text(q.prompt).font(.system(size:29,weight:.black,design:.rounded)).foregroundStyle(ink).multilineTextAlignment(.center).padding(.vertical,4)
-                    visualExampleView(for:q)
+                    Text(q.prompt).font(.system(size:25,weight:.black,design:.rounded)).foregroundStyle(ink).multilineTextAlignment(.center).padding(.vertical,4)
+                    questionVisualSection(for:q)
                     VStack(spacing:8) { ForEach(q.choices,id:\.self) { choice in
                         if q.fractionNumerator != nil {
                             EmptyView()
                         } else {
-                        Button { choose(choice,q) } label: { HStack{Text(choice).font(.system(size:15,weight:.bold,design:.rounded));Spacer();if selectedAnswer==choice && answered {Image(systemName:choice==q.answer ? "checkmark.circle.fill":"xmark.circle.fill")} }.foregroundStyle(answerColor(choice,q)).padding(12).frame(maxWidth:.infinity).background(answerBackground(choice,q),in:RoundedRectangle(cornerRadius:12)).overlay(RoundedRectangle(cornerRadius:12).stroke(answerStroke(choice,q),lineWidth:2)) }.buttonStyle(.plain).disabled(answered)
+                        Button { choose(choice,q) } label: { HStack{Text(choice).font(.system(size:15,weight:.bold,design:.rounded)).multilineTextAlignment(.leading);Spacer();if answered && (selectedAnswer==choice || (choice==q.answer && answerRevealed(q))) {Image(systemName:choice==q.answer ? "checkmark.circle.fill":"xmark.circle.fill")} }.foregroundStyle(answerColor(choice,q)).padding(12).frame(maxWidth:.infinity).background(answerBackground(choice,q),in:RoundedRectangle(cornerRadius:12)).overlay(RoundedRectangle(cornerRadius:12).stroke(answerStroke(choice,q),lineWidth:2)) }
+                        .buttonStyle(.plain).disabled(answered)
+                        .onHover { hovering in hoveredChoice = hovering ? choice : (hoveredChoice == choice ? nil : hoveredChoice) }
                         }
                     }}.frame(maxWidth:430)
                     if answered {
-                        HStack(spacing:8) {
+                        HStack(alignment:.top,spacing:8) {
                             Image(systemName:boardAnswer == "correct" ? "star.fill" : (q.fractionNumerator != nil ? "xmark.circle.fill" : "lightbulb.fill"))
                                 .foregroundStyle(boardAnswer == "correct" ? .orange : (q.fractionNumerator != nil ? .red : .orange))
-                            Text(boardAnswer == "correct" ? "Brilliant! The trail is getting brighter!" : (q.fractionNumerator != nil ? "Not quite. Your circles do not show the same amount yet. Adjust your circle and try again." : q.hint))
-                                .font(.system(size:12,weight:.semibold)).foregroundStyle(ink)
+                            VStack(alignment:.leading,spacing:6) {
+                                Text(feedbackTitle(q)).font(.system(size:12,weight:.semibold)).foregroundStyle(ink)
+                                if answerRevealed(q) {
+                                    if let why=wrongChoiceReason(q) {
+                                        Text(why).font(.system(size:12,weight:.medium)).foregroundStyle(ink).fixedSize(horizontal:false,vertical:true)
+                                    }
+                                    solutionPanel(q)
+                                } else {
+                                    Text("Hint: \(q.hint)").font(.system(size:12,weight:.medium)).foregroundStyle(ink).fixedSize(horizontal:false,vertical:true)
+                                }
+                            }
                         }.padding(11).frame(maxWidth:430,alignment:.leading).background(surface,in:RoundedRectangle(cornerRadius:12))
-                        if q.fractionNumerator != nil && boardAnswer == "wrong" {
+                        answerVisual(for:q)
+                        if q.fractionNumerator == nil && attempts.canRetry && !solutionShown && boardAnswer == "wrong" {
+                            HStack(spacing:10) {
+                                Button { tryAgain() } label: {
+                                    Text("Try again").font(.system(size:13,weight:.bold)).foregroundStyle(.white).padding(.horizontal,20).padding(.vertical,11).background(buttonFill,in:Capsule())
+                                }.buttonStyle(.plain)
+                                Button { solutionShown=true } label: {
+                                    Text("Show solution").font(.system(size:13,weight:.bold)).foregroundStyle(ink).padding(.horizontal,20).padding(.vertical,11).background(surface,in:Capsule()).overlay(Capsule().stroke(ink.opacity(0.4),lineWidth:1))
+                                }.buttonStyle(.plain)
+                            }
+                        } else if q.fractionNumerator != nil && boardAnswer == "wrong" {
                             Button { retryFraction() } label: {
                                 Text("Try again").font(.system(size:13,weight:.bold)).foregroundStyle(.white).padding(.horizontal,20).padding(.vertical,11).background(buttonFill,in:Capsule())
                             }.buttonStyle(.plain)
@@ -1049,7 +1073,7 @@ struct ContentView: View {
                 }
                 Text("Operations").font(.system(size:10,weight:.bold)).foregroundStyle(.secondary).frame(maxWidth:.infinity,alignment:.leading)
                 HStack(spacing:5) { ForEach(["+","−","×","÷","^"],id:\.self) { symbol in Text(symbol).font(.system(size:21,weight:.bold,design:.rounded)).foregroundStyle(.white).frame(maxWidth:.infinity,minHeight:36).background(Color(red:0.40,green:0.48,blue:0.75),in:RoundedRectangle(cornerRadius:10)).overlay(RoundedRectangle(cornerRadius:10).stroke(selectedBoardTile == "O:\(symbol)" ? Color.orange : .clear,lineWidth:2)).draggable("O:\(symbol)").onTapGesture{selectedBoardTile="O:\(symbol)"} } }
-                Button { if let result=evaluateBoard(q) { let isCorrect=abs(result - (Double(q.answer) ?? 0)) < 0.0001;boardAnswer=isCorrect ? "correct":"wrong";answered=isCorrect;if isCorrect{round += 1;awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday()}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)} } } label:{Text(boardAnswer == "wrong" ? "Try this equation" : "Check my equation").font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(maxWidth:.infinity).padding(.vertical,10).background(evaluateBoard(q) == nil || answered ? Color.gray.opacity(0.45):Color(red:0.27,green:0.61,blue:0.53),in:Capsule())}.buttonStyle(.plain).disabled(evaluateBoard(q) == nil || answered)
+                Button { checkBoard(q) } label:{Text(boardAnswer == "wrong" ? "Try this equation" : "Check my equation").font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(maxWidth:.infinity).padding(.vertical,10).background(evaluateBoard(q) == nil || answered ? Color.gray.opacity(0.45):Color(red:0.27,green:0.61,blue:0.53),in:Capsule())}.buttonStyle(.plain).disabled(evaluateBoard(q) == nil || answered)
                 Button("Clear board") { resetBoard(for:q);boardAnswer=nil;selectedBoardTile=nil }.font(.system(size:10,weight:.semibold)).foregroundStyle(.secondary).buttonStyle(.plain).disabled(answered)
             }.padding(13).background(boardPanelSurface,in:RoundedRectangle(cornerRadius:18)).overlay(RoundedRectangle(cornerRadius:18).stroke(Color.black.opacity(0.06),lineWidth:1))
             Spacer(minLength:0)
@@ -1105,11 +1129,11 @@ struct ContentView: View {
                     Text("Check fraction").font(.system(size:12,weight:.bold)).foregroundStyle(.white).frame(maxWidth:.infinity).padding(.vertical,10).background(placedCount == 0 || answered ? Color.gray.opacity(0.45):Color(red:0.78,green:0.30,blue:0.54),in:Capsule())
                 }.buttonStyle(.plain).disabled(placedCount == 0 || answered)
             }.padding(13).frame(maxWidth:.infinity).background(boardPanelSurface,in:RoundedRectangle(cornerRadius:18)).overlay(RoundedRectangle(cornerRadius:18).stroke(Color.black.opacity(0.06),lineWidth:1))
-            if answered && boardAnswer == "wrong" {
+            if answered && boardAnswer == "wrong" && q.fractionNumerator != nil {
                 Text("Not quite — your circle shows \(placedCount)/\(denominator). Try changing the number of pieces.")
                     .font(.system(size:10,weight:.semibold)).foregroundStyle(.red).multilineTextAlignment(.center).frame(maxWidth:.infinity)
             }
-            if answered && selectedAnswer == q.answer { Text("Both circles shade the same part of a whole.").font(.system(size:10,weight:.semibold)).foregroundStyle(.green).multilineTextAlignment(.center).frame(maxWidth:.infinity) }
+            if answered && selectedAnswer == q.answer && q.fractionNumerator != nil { Text("Both circles shade the same part of a whole.").font(.system(size:10,weight:.semibold)).foregroundStyle(.green).multilineTextAlignment(.center).frame(maxWidth:.infinity) }
             Spacer(minLength:0)
         }.padding(15).frame(maxHeight:.infinity,alignment:.top).background(fractionBoardSurface,in:RoundedRectangle(cornerRadius:20))
     }
@@ -1137,13 +1161,162 @@ struct ContentView: View {
     }
 
     private func formatted(_ result:Double)->String { result.rounded() == result ? String(Int(result)) : String(format:"%.2f",result) }
-    private func answerColor(_ c:String,_ q:Question)->Color { guard answered,selectedAnswer==c else{return ink};return c==q.answer ? .green : .red }
-    private func answerBackground(_ c:String,_ q:Question)->Color { guard answered,selectedAnswer==c else{return surface};return c==q.answer ? Color.green.opacity(0.1):Color.red.opacity(0.08) }
-    private func answerStroke(_ c:String,_ q:Question)->Color { guard answered,selectedAnswer==c else{return .clear};return c==q.answer ? .green:.red }
-    private func choose(_ choice:String,_ q:Question){
-        if q.fractionNumerator != nil && !answered { fractionPreview=choice;return }
-        selectedAnswer=choice;answered=true;boardAnswer=choice == q.answer ? "correct":"wrong";round += 1;if choice==q.answer{awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday()}else{recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q)}
+    // Correct answer is always green after answering; a wrong pick is red; hover previews an unanswered choice.
+    private func answerColor(_ c:String,_ q:Question)->Color {
+        guard answered else{return ink}
+        if c==q.answer {return answerRevealed(q) ? .green : ink}
+        return selectedAnswer==c ? .red : ink
     }
+    private func answerBackground(_ c:String,_ q:Question)->Color {
+        guard answered else{return hoveredChoice==c ? Color.blue.opacity(0.08) : surface}
+        if c==q.answer {return answerRevealed(q) ? Color.green.opacity(0.1) : surface}
+        return selectedAnswer==c ? Color.red.opacity(0.08) : surface
+    }
+    private func answerStroke(_ c:String,_ q:Question)->Color {
+        guard answered else{return hoveredChoice==c ? Color.blue.opacity(0.45) : .clear}
+        if c==q.answer {return answerRevealed(q) ? .green : .clear}
+        return selectedAnswer==c ? .red : .clear
+    }
+    /// The correct answer and its steps show only after a correct answer or the full solution.
+    /// Fraction questions keep their own flow and always show their feedback.
+    private func answerRevealed(_ q:Question)->Bool {
+        q.fractionNumerator != nil || boardAnswer == "correct" || solutionShown
+    }
+
+    private func feedbackTitle(_ q:Question)->String {
+        if q.fractionNumerator != nil {
+            return boardAnswer == "correct" ? "Correct! Brilliant, the trail is getting brighter!" : "Not quite. Your circles do not show the same amount yet. Adjust your circle and try again."
+        }
+        if boardAnswer == "correct" {
+            return attempts.wrongCount == 0 ? "Correct! Brilliant, the trail is getting brighter!" : "Correct on your retry! XP was counted on your first try."
+        }
+        return solutionShown ? "Not quite. Here is the full solution." : "Not quite! Let's try again."
+    }
+
+    /// The solution panel shows only what the question really has: why it is correct, verified steps,
+    /// a labelled example and a reminder. Nothing is invented to fill a template.
+    private func solutionPanel(_ q:Question)->some View {
+        VStack(alignment:.leading,spacing:9) {
+            Text("Solution Explained").font(.system(size:13,weight:.black,design:.rounded)).foregroundStyle(ink).accessibilityAddTraits(.isHeader)
+            Text("Correct answer: \(q.answer)").font(.system(size:12,weight:.bold)).foregroundStyle(ink).fixedSize(horizontal:false,vertical:true)
+            if let why=q.explanation {
+                solutionSection("Why is this correct?") { Text(why) }
+            }
+            if let steps=q.steps, !steps.isEmpty {
+                solutionSection("How to solve it") {
+                    ForEach(Array(steps.enumerated()),id:\.offset) { index,step in
+                        Text("\(index+1). \(step)").fixedSize(horizontal:false,vertical:true)
+                    }
+                }
+            }
+            if let example=q.example {
+                solutionSection("Example") {
+                    ForEach(Array(example.components(separatedBy:"\n").enumerated()),id:\.offset) { _,line in
+                        Text(line).fixedSize(horizontal:false,vertical:true)
+                    }
+                }
+            }
+            if let reminder=q.reminder {
+                solutionSection("Remember") { Text(reminder) }
+            }
+            if q.explanation == nil && q.steps == nil && q.example == nil {
+                solutionSection("Key idea") { Text(q.hint) }
+            }
+        }
+        .font(.system(size:12,weight:.medium))
+        .foregroundStyle(ink)
+    }
+
+    private func solutionSection<Content: View>(_ title:String,@ViewBuilder _ content:()->Content)->some View {
+        VStack(alignment:.leading,spacing:3) {
+            Text(title).font(.system(size:12,weight:.bold)).foregroundStyle(ink).accessibilityAddTraits(.isHeader)
+            content()
+        }
+        .frame(maxWidth:.infinity,alignment:.leading)
+    }
+
+    private func wrongChoiceReason(_ q:Question)->String? {
+        guard boardAnswer == "wrong", solutionShown, let selected=selectedAnswer, let why=q.choiceFeedback?[selected] else { return nil }
+        return "Why \(selected) is not the answer: \(why)"
+    }
+
+    /// Guided retry: clears the wrong pick so the student can choose again. Attempts are kept, so XP
+    /// and the recorded result stay tied to the first try.
+    private func tryAgain() { answered=false;selectedAnswer=nil;boardAnswer=nil;showHint=false }
+
+    /// Choosing an answer. Only the first try can award XP or record a result. Retries are practice.
+    private func choose(_ choice:String,_ q:Question){
+        guard !answered else { return }
+        if q.fractionNumerator != nil { fractionPreview=choice;return }
+        let outcome=attempts.submit(correct:choice == q.answer)
+        selectedAnswer=choice;answered=true
+        switch outcome {
+        case .firstTryCorrect:
+            boardAnswer="correct";round += 1;awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday()
+        case .correctAfterRetry:
+            boardAnswer="correct"
+        case .wrongCanRetry, .wrongFinal:
+            boardAnswer="wrong"
+            if outcome == .wrongFinal { solutionShown=true }
+            // The first miss counts once, however many retries follow.
+            if attempts.wrongCount == 1 { round += 1;recordTopicAnswer(selectedTopic?.id ?? "number",correct:false,question:q) }
+        }
+    }
+
+    /// The Number Board is another way to answer the same question, using the same numbers and answer.
+    /// A correct equation answers it under the same XP rules as a choice. A wrong equation only gives
+    /// feedback: it does not answer the question or record a miss.
+    private func checkBoard(_ q:Question) {
+        guard !answered, q.fractionNumerator == nil, let result=evaluateBoard(q) else { return }
+        guard abs(result-(Double(q.answer) ?? 0)) < 0.0001 else { boardAnswer="wrong";return }
+        let outcome=attempts.submit(correct:true)
+        selectedAnswer=q.answer;answered=true;boardAnswer="correct"
+        if outcome == .firstTryCorrect { round += 1;awardCorrectAnswerXP(for:selectedTopic?.id ?? "number");recordPlayToday() }
+    }
+
+    /// 100 squares in ten rows of ten. The first `highlighted` squares are filled, so the shading always
+    /// matches the answer. Each part is also labelled in words, so colour is not the only cue.
+    private func hundredGridView(_ grid:HundredGrid)->some View {
+        let fill=sportColor("Basketball")
+        return VStack(alignment:.leading,spacing:10) {
+            HStack(spacing:5) {
+                Image(systemName:"lightbulb").font(.system(size:10,weight:.bold))
+                Text("VISUAL EXAMPLE").font(.system(size:10,weight:.black,design:.rounded)).tracking(0.8)
+            }.foregroundStyle(ink)
+            Text(grid.title).font(.system(size:15,weight:.bold,design:.rounded)).foregroundStyle(ink)
+            VStack(spacing:3) {
+                ForEach(0..<10,id:\.self) { row in
+                    HStack(spacing:3) {
+                        ForEach(0..<10,id:\.self) { column in
+                            let index=row*10+column
+                            RoundedRectangle(cornerRadius:3)
+                                .fill(index < grid.highlighted ? fill : Color.white)
+                                .overlay(RoundedRectangle(cornerRadius:3).stroke(Color.black.opacity(0.35),lineWidth:0.8))
+                                .frame(width:20,height:20)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth:.infinity)
+            VStack(alignment:.leading,spacing:6) {
+                HStack(spacing:8) {
+                    RoundedRectangle(cornerRadius:3).fill(fill).frame(width:13,height:13)
+                    Text(grid.highlightLabel).font(.system(size:12,weight:.semibold)).foregroundStyle(ink)
+                }
+                HStack(spacing:8) {
+                    RoundedRectangle(cornerRadius:3).fill(Color.white).overlay(RoundedRectangle(cornerRadius:3).stroke(Color.black.opacity(0.35),lineWidth:0.8)).frame(width:13,height:13)
+                    Text(grid.remainderLabel).font(.system(size:12,weight:.semibold)).foregroundStyle(ink)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth:430,alignment:.leading)
+        .background(Color.blue.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
+        .frame(maxWidth:.infinity)
+        .accessibilityElement(children:.ignore)
+        .accessibilityLabel("\(grid.title). \(grid.highlightLabel). \(grid.remainderLabel).")
+    }
+
     private func checkFraction(_ q:Question){
         // The circle is cut into the answer's denominator, so the piece count must match its numerator.
         guard let (answerNumerator, denominator)=fractionParts(q.answer), !fractionPieces.isEmpty else{return}
@@ -1158,7 +1331,7 @@ struct ContentView: View {
         guard !answered else{return}
         if let next=(0..<denominator).first(where:{!fractionPieces.contains($0)}) { fractionPieces.insert(next) }
     }
-    private func resetBoard(for q:Question){boardValues=Array(repeating:nil,count:q.operands.count);boardOperators=Array(repeating:nil,count:max(0,q.operands.count-1));selectedBoardTile=nil}
+    private func resetBoard(for q:Question){boardValues=Array(repeating:nil,count:q.operands.count);boardOperators=Array(repeating:nil,count:max(0,q.operands.count-1));selectedBoardTile=nil;attempts=AnswerAttempts();solutionShown=false}
     private func nextQuestion(){activeReviewChallengeID=nil;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:selectedTopic ?? topics[0],grade:grade);question=q;resetBoard(for:q)}
     private func startGame(topic:Topic){activeReviewChallengeID=nil;selectedTopic=topic;selectedTab="Home";round=0;selectedAnswer=nil;fractionPreview=nil;fractionPieces=[];boardAnswer=nil;answered=false;showHint=false;let q=questionGenerator.makeQuestion(topic:topic,grade:grade);question=q;resetBoard(for:q)}
     private func startReview(_ challenge:ReviewChallenge){
@@ -1173,8 +1346,14 @@ struct ContentView: View {
     }
     private func navigate(to page:String){ activeReviewChallengeID=nil;selectedTab=page; question=nil; selectedAnswer=nil; fractionPreview=nil;fractionPieces=[]; boardAnswer=nil;  answered=false }
 
+    // Solid tints, not translucent ones: a translucent tint turns dark on the dark theme and drops the
+    // black text below WCAG AA contrast. Black text on each of these is above 10:1.
+    private var exampleHighlight:Color { Color(red:0.80,green:0.94,blue:0.83) }
+    private var exampleAmber:Color { Color(red:0.99,green:0.88,blue:0.66) }
+    private var exampleYellow:Color { Color(red:0.99,green:0.93,blue:0.60) }
+
     private func exampleToken(_ value:String,_ tint:Color = Color(red:0.91,green:0.94,blue:0.98))->some View {
-        Text(value).font(.system(size:15,weight:.black,design:.rounded)).foregroundStyle(Color.black.opacity(0.82)).padding(.horizontal,10).padding(.vertical,7).background(tint,in:RoundedRectangle(cornerRadius:9))
+        Text(value).font(.system(size:15,weight:.black,design:.rounded)).foregroundStyle(Color.black).padding(.horizontal,10).padding(.vertical,7).background(tint,in:RoundedRectangle(cornerRadius:9))
     }
 
     @ViewBuilder private func visualExampleView(for q:Question)->some View {
@@ -1182,28 +1361,26 @@ struct ContentView: View {
             HStack(spacing:5) {
                 Image(systemName:"lightbulb").font(.system(size:9,weight:.bold))
                 Text("VISUAL EXAMPLE").font(.system(size:10,weight:.black,design:.rounded)).tracking(0.8)
-            }.foregroundStyle(ink.opacity(0.78)).frame(maxWidth:.infinity,alignment:.leading)
+            }.foregroundStyle(ink).frame(maxWidth:.infinity,alignment:.leading)
             switch selectedTopic?.id {
             case "fractions":
-                HStack(spacing:5){exampleToken("a / b");exampleToken("× k / k");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("? / ?",.green.opacity(0.2))}
+                HStack(spacing:5){exampleToken("a / b");exampleToken("× k / k");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("? / ?",exampleHighlight)}
             case "number":
-                if grade <= 3 {HStack(spacing:5){exampleToken("a");exampleToken(q.operators.count == 1 ? q.operators[0] : "+",.orange.opacity(0.2));exampleToken("b");exampleToken("=");exampleToken("?",.green.opacity(0.2))}}
-                else if grade <= 8 {HStack(spacing:5){exampleToken("two-digit × two-digit");exampleToken("→");exampleToken("partial products",.green.opacity(0.2))}}
-                else {HStack(spacing:4){exampleToken("principal × rate × time");exampleToken("÷ 100");exampleToken("= ?",.green.opacity(0.2))}}
+                if grade <= 3 {HStack(spacing:5){exampleToken("a");exampleToken(q.operators.count == 1 ? q.operators[0] : "+",exampleAmber);exampleToken("b");exampleToken("=");exampleToken("?",exampleHighlight)}}
+                else if grade <= 8 {HStack(spacing:5){exampleToken("two-digit × two-digit");exampleToken("→");exampleToken("partial products",exampleHighlight)}}
+                else {HStack(spacing:4){exampleToken("principal × rate × time");exampleToken("÷ 100");exampleToken("= ?",exampleHighlight)}}
             case "algebra":
-                HStack(spacing:5){exampleToken("unknown + amount = total");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("total − amount",.green.opacity(0.2))}
+                HStack(spacing:5){exampleToken("unknown + amount = total");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("total − amount",exampleHighlight)}
             case "measurement":
-                if grade <= 5 {HStack(spacing:5){exampleToken("parallelogram: b × h");exampleToken("triangle: b × h ÷ 2",.green.opacity(0.2))}}
-                else if grade <= 8 {HStack(spacing:5){exampleToken("length × width × height");exampleToken("= volume",.green.opacity(0.2))}}
-                else {HStack(spacing:5){exampleToken("circle area: π × r²");exampleToken("circumference: 2πr",.green.opacity(0.2))}}
+                if grade <= 5 {HStack(spacing:5){exampleToken("parallelogram: b × h");exampleToken("triangle: b × h ÷ 2",exampleHighlight)}}
+                else if grade <= 8 {HStack(spacing:5){exampleToken("length × width × height");exampleToken("= volume",exampleHighlight)}}
+                else {HStack(spacing:5){exampleToken("circle area: π × r²");exampleToken("circumference: 2πr",exampleHighlight)}}
             case "spatial":
-                HStack(spacing:8){Image(systemName:"triangle").font(.system(size:32,weight:.medium)).foregroundStyle(Color.teal);Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken(grade <= 5 ? "compare sides and angles" : "identify geometric properties",.green.opacity(0.2))}
-            case "data":
-                HStack(alignment:.bottom,spacing:8){ForEach(Array([24,38,18,50].enumerated()),id:\.offset){index,item in VStack(spacing:3){RoundedRectangle(cornerRadius:4).fill([Color.blue,Color.orange,Color.green,Color.purple][index].opacity(0.65)).frame(width:24,height:CGFloat(item));Text(["A","B","C","Σ"][index]).font(.system(size:9,weight:.bold))}}}
+                HStack(spacing:8){Image(systemName:"triangle").font(.system(size:32,weight:.medium)).foregroundStyle(Color.teal);Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken(grade <= 5 ? "compare sides and angles" : "identify geometric properties",exampleHighlight)}
             case "decimals_percentages":
-                HStack(spacing:7){exampleToken("fraction");Image(systemName:"arrow.left.and.right").foregroundStyle(.secondary);exampleToken("decimal",.green.opacity(0.18));exampleToken("↔");exampleToken("percent")}
+                HStack(spacing:7){exampleToken("fraction");Image(systemName:"arrow.left.and.right").foregroundStyle(.secondary);exampleToken("decimal",exampleHighlight);exampleToken("↔");exampleToken("percent")}
             case "probability":
-                HStack(spacing:5){exampleToken("favourable outcomes");exampleToken("÷");exampleToken("all outcomes");exampleToken("=");exampleToken("probability",.green.opacity(0.2))}
+                HStack(spacing:5){exampleToken("favourable outcomes");exampleToken("÷");exampleToken("all outcomes");exampleToken("=");exampleToken("probability",exampleHighlight)}
             case "data_visualization":
                 VStack(alignment:.leading,spacing:6) {
                     Text("Each bar is one group; colours show its categories.")
@@ -1231,19 +1408,140 @@ struct ContentView: View {
             case "mathematical_modelling":
                 HStack(spacing:5){Image(systemName:"bus.fill").foregroundStyle(.teal);exampleToken("fixed fee");exampleToken("+");exampleToken("cost per person × group");exampleToken("=");exampleToken("?")}
             case "mental_math_place_value":
-                HStack(spacing:5){exampleToken("digit");exampleToken("×");exampleToken("place value");exampleToken("=");exampleToken("digit value",.green.opacity(0.2))}
+                HStack(spacing:5){exampleToken("digit");exampleToken("×");exampleToken("place value");exampleToken("=");exampleToken("digit value",exampleHighlight)}
             case "triangles_transformations":
-                HStack(spacing:5){exampleToken("P(x, y)");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("P(x + Δx, y)",.green.opacity(0.2))}
+                HStack(spacing:5){exampleToken("P(x, y)");Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("P(x + Δx, y)",exampleHighlight)}
             case "budgeting_credit":
                 HStack(spacing:5){Image(systemName:"dollarsign.circle.fill").foregroundStyle(.green);exampleToken("income");exampleToken("−");exampleToken("needs");exampleToken("−");exampleToken("savings");exampleToken("=");exampleToken("?")}
             default:
-                HStack(spacing:7){ForEach(0..<3,id:\.self){index in Circle().fill(Color.yellow.opacity(0.35)).frame(width:32,height:32).overlay(Text("coin\(index+1)").font(.system(size:8,weight:.black)))};Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("choose an operation",.green.opacity(0.2))}
+                HStack(spacing:7){ForEach(0..<3,id:\.self){index in Circle().fill(exampleYellow).frame(width:32,height:32).overlay(Text("coin\(index+1)").font(.system(size:8,weight:.black)))};Image(systemName:"arrow.right").foregroundStyle(.secondary);exampleToken("choose an operation",exampleHighlight)}
             }
         }
         .frame(maxWidth:.infinity,minHeight:78)
         .padding(9)
         .background(Color.blue.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
         .accessibilityLabel("Visual example showing a general method, not the answer to the current question")
+    }
+
+    /// Picks the visual for the current question. A question-specific visual always wins.
+    /// The topic's generic sketch is only a fallback, and data questions without a visual show nothing.
+    @ViewBuilder private func questionVisualSection(for q:Question)->some View {
+        if let visual=q.visual {
+            if visual.isValid && !visual.revealsAfterAnswer { questionVisualView(visual) }
+        } else if selectedTopic?.id != "data" {
+            visualExampleView(for:q)
+        }
+    }
+
+    /// Visuals that explain the answer appear after submission, below the explanation and above Next.
+    @ViewBuilder private func answerVisual(for q:Question)->some View {
+        if answered, let visual=q.visual, visual.revealsAfterAnswer, visual.isValid { questionVisualView(visual) }
+    }
+
+    @ViewBuilder private func questionVisualView(_ visual:QuestionVisual)->some View {
+        switch visual {
+        case .surveyComparison(let chart): surveyComparisonView(chart)
+        case .frequencyChart(let chart): frequencyChartView(chart)
+        case .hundredGrid(let grid): hundredGridView(grid)
+        }
+    }
+
+    /// One colour per sport, used in every chart so the same sport always looks the same.
+    /// Each colour keeps white labels at WCAG AA contrast (4.5:1 or better).
+    private func sportColor(_ category:String)->Color {
+        switch category {
+        case "Basketball": return Color(red:0.16,green:0.38,blue:0.68)
+        case "Soccer": return Color(red:0.72,green:0.35,blue:0.05)
+        default: return Color(red:0.10,green:0.45,blue:0.38)
+        }
+    }
+
+    /// Horizontal bars, one per distinct value. The most frequent bar is marked in words, not only by colour.
+    private func frequencyChartView(_ chart:FrequencyChart)->some View {
+        let largest=chart.bars.map(\.count).max() ?? 1
+        let summary=chart.bars.map { "\($0.label) appears \($0.count) \($0.count == 1 ? "time" : "times")" }.joined(separator:", ")
+        return VStack(alignment:.leading,spacing:10) {
+            HStack(spacing:5) {
+                Image(systemName:"lightbulb").font(.system(size:10,weight:.bold))
+                Text("VISUAL EXAMPLE").font(.system(size:10,weight:.black,design:.rounded)).tracking(0.8)
+            }.foregroundStyle(ink)
+            Text(chart.title).font(.system(size:15,weight:.bold,design:.rounded)).foregroundStyle(ink)
+            ForEach(Array(chart.bars.enumerated()),id:\.offset) { _,bar in
+                let isMode=bar.count == largest && chart.bars.filter { $0.count == largest }.count == 1
+                HStack(spacing:10) {
+                    Text(bar.label).font(.system(size:14,weight:.bold,design:.rounded)).foregroundStyle(ink).frame(width:56,alignment:.trailing)
+                    GeometryReader { proxy in
+                        RoundedRectangle(cornerRadius:6)
+                            .fill(isMode ? sportColor("Soccer") : Color.blue.opacity(0.45))
+                            .frame(width:max(4,proxy.size.width*CGFloat(bar.count)/CGFloat(largest)))
+                    }
+                    .frame(height:24)
+                    Text("\(bar.count)\(isMode ? " · most" : "")").font(.system(size:13,weight:.bold)).foregroundStyle(ink).frame(minWidth:70,alignment:.leading)
+                }
+                .accessibilityElement(children:.ignore)
+                .accessibilityLabel("\(bar.label) appears \(bar.count) \(bar.count == 1 ? "time" : "times")\(isMode ? ", the most often" : "")")
+            }
+            Text("Each bar shows how many times a value appears. The mode is the bar that is longest.")
+                .font(.system(size:11,weight:.medium)).foregroundStyle(ink)
+        }
+        .padding(14)
+        .frame(maxWidth:430,alignment:.leading)
+        .background(Color.blue.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
+        .frame(maxWidth:.infinity)
+        .accessibilityLabel("Frequency chart: \(summary)")
+    }
+
+    private func surveyComparisonView(_ chart:SurveyChart)->some View {
+        VStack(alignment:.leading,spacing:12) {
+            HStack(spacing:5) {
+                Image(systemName:"lightbulb").font(.system(size:10,weight:.bold))
+                Text("VISUAL EXAMPLE").font(.system(size:10,weight:.black,design:.rounded)).tracking(0.8)
+            }.foregroundStyle(ink)
+            Text(chart.title).font(.system(size:15,weight:.bold,design:.rounded)).foregroundStyle(ink)
+            ForEach(chart.groups,id:\.name) { group in surveyBar(group,categories:chart.categories) }
+            HStack(spacing:14) {
+                ForEach(chart.categories,id:\.self) { name in
+                    HStack(spacing:6) {
+                        RoundedRectangle(cornerRadius:3).fill(sportColor(name)).frame(width:13,height:13)
+                        Text(name).font(.system(size:13,weight:.semibold)).foregroundStyle(ink)
+                    }
+                }
+            }
+            Text("Each bar totals 100%. Illustrative values, not real survey data.")
+                .font(.system(size:11,weight:.medium)).foregroundStyle(ink)
+        }
+        .padding(14)
+        .frame(maxWidth:430,alignment:.leading)
+        .background(Color.blue.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
+        .frame(maxWidth:.infinity)
+    }
+
+    /// One 100% bar for a survey group. The percents are also written as text, so the
+    /// values do not depend on colour, and the bar reads as one labelled element for VoiceOver.
+    private func surveyBar(_ group:SurveyChart.Group,categories:[String])->some View {
+        let summary=categories.enumerated().map{"\($0.element) \(group.percents[$0.offset])%"}.joined(separator:", ")
+        return VStack(alignment:.leading,spacing:6) {
+            Text(group.name).font(.system(size:14,weight:.bold)).foregroundStyle(ink)
+            GeometryReader { proxy in
+                HStack(spacing:0) {
+                    ForEach(Array(categories.enumerated()),id:\.offset) { index,category in
+                        let percent=group.percents[index]
+                        ZStack {
+                            sportColor(category)
+                            if percent >= 10 {
+                                Text("\(percent)%").font(.system(size:13,weight:.black,design:.rounded)).foregroundStyle(.white)
+                            }
+                        }
+                        .frame(width:proxy.size.width*CGFloat(percent)/100)
+                    }
+                }
+            }
+            .frame(height:36)
+            .clipShape(RoundedRectangle(cornerRadius:8))
+            Text(summary).font(.system(size:12,weight:.semibold)).foregroundStyle(ink)
+        }
+        .accessibilityElement(children:.ignore)
+        .accessibilityLabel("\(group.name): \(summary). Total 100 percent.")
     }
 
     private func stackedSegment(_ value:String,width:CGFloat,color:Color)->some View {
@@ -1258,10 +1556,10 @@ struct ContentView: View {
     private var parentSheet: some View {
         VStack(alignment:.leading,spacing:16) {
             HStack{Image(systemName:"leaf.fill").foregroundStyle(.green);Text("For grown-ups").font(.system(size:22,weight:.black,design:.rounded));Spacer();Button("Done"){showParent=false}.buttonStyle(.bordered)}
-            Text("Math Quest is organized around the shared foundations of Canadian provincial and territorial curricula. Exact sequencing and expectations vary by province or territory.").font(.system(size:13)).foregroundStyle(.secondary)
+            Text("Math Quest is a starter practice app with general Grade 1–12 math challenges. They have not yet been checked against the Ontario Mathematics curriculum or any other province’s expectations.").font(.system(size:13)).foregroundStyle(.secondary)
             Text("Learning modules • Grades 1–12").font(.system(size:15,weight:.bold))
-            ForEach([("Number & operations","Counting, place value and arithmetic"),("Fractions","Equivalent fractions and circle models (Grades 2–8)"),("Decimals & percentages","Relate decimal, percent and fraction forms"),("Probability","Chance experiments and outcomes"),("Data visualization","Create and read charts; compare data"),("Algebra","Patterns, relationships, variables and equations"),("Coding & algorithms","Follow rules that generate number patterns"),("Mathematical modelling","Represent and solve real-world problems"),("Geometry","Shapes, angles, location and transformations"),("Triangles & transformations","Classify triangles and move shapes on a grid"),("Measurement","Length, time, mass, area, perimeter, volume and units"),("Data","Collect, organize, represent and interpret data"),("Financial literacy","Money, needs, wants, spending and saving"),("Budgeting & credit","Plan budgets and explore borrowing and interest")],id:\.0){item in HStack(alignment:.top,spacing:9){Image(systemName:"checkmark.seal.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(item.0).font(.system(size:13,weight:.bold));Text(item.1).font(.system(size:11)).foregroundStyle(.secondary)}}}
-            Divider();Text("This starter build provides an expandable foundation and sample adaptive question generators. A complete province-aligned curriculum would need the target province and reviewed learning outcomes for each grade.").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+            ForEach([("Number & operations","Counting, place value and arithmetic"),("Fractions","Equal sharing, equivalent fractions and circle models (Grades 1–8)"),("Decimals & percentages","Relate decimal, percent and fraction forms"),("Probability","Chance experiments and outcomes"),("Data visualization","Create and read charts; compare data"),("Algebra","Patterns, relationships, variables and equations"),("Coding & algorithms","Follow rules that generate number patterns"),("Mathematical modelling","Represent and solve real-world problems"),("Geometry","Shapes, angles, location and transformations"),("Triangles & transformations","Classify triangles and move shapes on a grid"),("Measurement","Length, time, mass, area, perimeter, volume and units"),("Data","Collect, organize, represent and interpret data"),("Financial literacy","Money, needs, wants, spending and saving"),("Budgeting & credit","Plan budgets and explore borrowing and interest")],id:\.0){item in HStack(alignment:.top,spacing:9){Image(systemName:"checkmark.seal.fill").foregroundStyle(.green);VStack(alignment:.leading,spacing:3){Text(item.0).font(.system(size:13,weight:.bold));Text(item.1).font(.system(size:11)).foregroundStyle(.secondary)}}}
+            Divider();Text("Grade placement is a starting point. Before classroom use, a teacher should review each topic and grade against the current Ontario Mathematics curriculum.").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
         }.padding(25).frame(width:510)
     }
 }
